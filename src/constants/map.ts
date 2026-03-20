@@ -1,8 +1,18 @@
-// Map style: OpenFreeMap liberty style — 100% free, no API key required
-export const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+// Map styles — Stadia Maps (200k req/month free). Get a key at stadiamaps.com
+const STADIA_KEY = process.env.EXPO_PUBLIC_STADIA_KEY ?? '';
+const stadia = (style: string) =>
+  `https://tiles.stadiamaps.com/styles/${style}.json?api_key=${STADIA_KEY}`;
 
-// Topo overlay: OpenTopoMap — free, no API key, shows trails + contours
-export const TOPO_TILE_URL = 'https://tile.opentopomap.org/{z}/{x}/{y}.png';
+export const MAP_STYLES = [
+  { id: 'outdoors',  label: 'Outdoors',  url: stadia('outdoors') },
+  { id: 'terrain',   label: 'Terrain',   url: stadia('stamen_terrain') },
+  { id: 'satellite', label: 'Satellite', url: stadia('alidade_satellite') },
+] as const;
+
+export type MapStyleId = (typeof MAP_STYLES)[number]['id'];
+
+// Legacy alias used by ControlsPanel offline downloads (defaults to Outdoors)
+export const MAP_STYLE_URL = MAP_STYLES[0].url;
 
 // GraphHopper routing API — register free at graphhopper.com (~500 req/day)
 export const GRAPHHOPPER_BASE_URL = 'https://graphhopper.com/api/1';

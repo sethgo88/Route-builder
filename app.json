@@ -30,7 +30,8 @@
       ]
     },
     "plugins": [
-      "expo-document-picker"
+      "expo-document-picker",
+      "@maplibre/maplibre-react-native"
     ]
   }
 }
