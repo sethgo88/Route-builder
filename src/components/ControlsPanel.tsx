@@ -18,9 +18,9 @@ import { exportGpx } from '../services/gpxExport';
 import { parseGpx } from '../services/gpxParser';
 import ElevationProfile from './ElevationProfile';
 import {
-  MAP_STYLE_URL,
   OFFLINE_MAX_ZOOM,
   OFFLINE_MIN_ZOOM,
+  OFFLINE_TILE_URL,
 } from '../constants/map';
 
 interface Props {
@@ -114,7 +114,7 @@ export default function ControlsPanel({ mapViewRef }: Props) {
       await MapLibreGL.offlineManager.createPack(
         {
           name: packName,
-          styleURL: MAP_STYLE_URL,
+          styleURL: OFFLINE_TILE_URL,
           minZoom: OFFLINE_MIN_ZOOM,
           maxZoom: OFFLINE_MAX_ZOOM,
           bounds: [
