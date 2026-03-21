@@ -1,33 +1,44 @@
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import MapLibreGL from '@maplibre/maplibre-react-native';
 import type { Feature, Point } from 'geojson';
-import { useRouteStore, type Waypoint } from '../store/routeStore';
+import { useRouteStore, type Waypoint, type Coordinate } from '../store/routeStore';
 
 interface Props {
   waypoint: Waypoint;
   index: number;
+  total: number;
+  onDragMove?: (coord: Coordinate) => void;
+  onDragFinish?: () => void;
 }
 
-// Cycle through a palette for multi-waypoint routes
-const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6'];
-
-function getLabel(index: number): string {
-  return String.fromCharCode(65 + (index % 26)); // A, B, C ...
+function getMarkerColor(index: number, total: number): string {
+  if (index === 0) return '#22c55e';           // green — start
+  if (index === total - 1) return '#ef4444';   // red — end
+  return '#3b82f6';                            // blue — middle
 }
 
-export default function WaypointMarker({ waypoint, index }: Props) {
+export default function WaypointMarker({ waypoint, index, total, onDragMove, onDragFinish }: Props) {
   const moveWaypoint = useRouteStore((s) => s.moveWaypoint);
   const removeWaypoint = useRouteStore((s) => s.removeWaypoint);
 
-  const color = COLORS[index % COLORS.length];
+  const color = getMarkerColor(index, total);
+
+  const handleDrag = useCallback(
+    (feature: Feature<Point>) => {
+      const [longitude, latitude] = feature.geometry.coordinates;
+      onDragMove?.({ longitude, latitude });
+    },
+    [onDragMove],
+  );
 
   const handleDragEnd = useCallback(
     (feature: Feature<Point>) => {
       const [longitude, latitude] = feature.geometry.coordinates;
       moveWaypoint(waypoint.id, { longitude, latitude });
+      onDragFinish?.();
     },
-    [waypoint.id, moveWaypoint],
+    [waypoint.id, moveWaypoint, onDragFinish],
   );
 
   return (
@@ -35,6 +46,7 @@ export default function WaypointMarker({ waypoint, index }: Props) {
       id={`waypoint-${waypoint.id}`}
       coordinate={[waypoint.coordinate.longitude, waypoint.coordinate.latitude]}
       draggable
+      onDrag={handleDrag}
       onDragEnd={handleDragEnd}
       onSelected={() => {
         // Tap the marker to remove it
@@ -42,18 +54,16 @@ export default function WaypointMarker({ waypoint, index }: Props) {
       }}
     >
       {/* MapLibre requires a single, fixed-size child view */}
-      <View style={[styles.marker, { backgroundColor: color }]} collapsable={false}>
-        <Text style={styles.label}>{getLabel(index)}</Text>
-      </View>
+      <View style={[styles.marker, { backgroundColor: color }]} collapsable={false} />
     </MapLibreGL.PointAnnotation>
   );
 }
 
 const styles = StyleSheet.create({
   marker: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -63,10 +73,5 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 3,
     elevation: 5,
-  },
-  label: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 14,
   },
 });

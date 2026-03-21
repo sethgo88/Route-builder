@@ -33,6 +33,7 @@ interface RouteState {
 
 interface RouteActions {
   addWaypoint: (coord: Coordinate) => void;
+  insertWaypoint: (afterIndex: number, coord: Coordinate) => void;
   moveWaypoint: (id: string, coord: Coordinate) => void;
   removeWaypoint: (id: string) => void;
   undoLastWaypoint: () => void;
@@ -64,6 +65,13 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
     set((state) => ({
       waypoints: [...state.waypoints, { id: makeId(), coordinate: coord }],
     })),
+
+  insertWaypoint: (afterIndex, coord) =>
+    set((state) => {
+      const wps = [...state.waypoints];
+      wps.splice(afterIndex + 1, 0, { id: makeId(), coordinate: coord });
+      return { waypoints: wps };
+    }),
 
   moveWaypoint: (id, coord) =>
     set((state) => ({
