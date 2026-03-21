@@ -29,8 +29,8 @@ export type MapStyleId = (typeof MAP_STYLES)[number]['id'];
 // Tile URL for offline pack downloads
 export const OFFLINE_TILE_URL = `https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}@2x.png?api_key=${STADIA_KEY}`;
 
-// Stadia Valhalla routing — same API key as tiles, no separate account needed
-export const VALHALLA_BASE_URL = 'https://valhalla.stadiamaps.com';
+// Stadia routing (Valhalla) — same API key as tiles, no separate account needed
+export const VALHALLA_BASE_URL = 'https://api.stadiamaps.com';
 
 // Default map center (Colorado — great for hiking demos)
 export const DEFAULT_CENTER: [number, number] = [-105.6836, 40.3428];

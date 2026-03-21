@@ -9,6 +9,38 @@ export interface RouteResult {
   stats: RouteStats;
 }
 
+/**
+ * Decodes a Valhalla polyline6-encoded string into [lon, lat] coordinate pairs.
+ * Valhalla encodes at precision 1e6 and returns [lat, lon] order.
+ */
+function decodePolyline6(encoded: string): [number, number][] {
+  const coords: [number, number][] = [];
+  let index = 0;
+  let lat = 0;
+  let lon = 0;
+  while (index < encoded.length) {
+    let b: number;
+    let shift = 0;
+    let result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    lon += result & 1 ? ~(result >> 1) : result >> 1;
+    coords.push([lon / 1e6, lat / 1e6]); // GeoJSON is [lon, lat]
+  }
+  return coords;
+}
+
 function calcGainLoss(heights: number[]): { gainM: number; lossM: number } {
   let gainM = 0;
   let lossM = 0;
@@ -34,11 +66,11 @@ export async function fetchRoute(
     );
   }
 
-  const locations = waypoints.map((wp) => ({ lon: wp.longitude, lat: wp.latitude }));
+  const locations = waypoints.map((wp) => ({ lon: wp.longitude, lat: wp.latitude, type: 'break' }));
 
   // 1. Fetch route geometry
   const routeResponse = await fetch(
-    `${VALHALLA_BASE_URL}/route?api_key=${STADIA_API_KEY}`,
+    `${VALHALLA_BASE_URL}/route/v1?api_key=${STADIA_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -48,7 +80,6 @@ export async function fetchRoute(
         costing_options: {
           pedestrian: { use_trails: snapToTrails ? 1.0 : 0.5 },
         },
-        shape_format: 'geojson',
         directions_type: 'none',
       }),
     },
@@ -60,22 +91,26 @@ export async function fetchRoute(
   }
 
   const routeData = await routeResponse.json();
-  const leg = routeData.trip?.legs?.[0];
-  if (!leg) throw new Error('No route found between waypoints');
+  const legs: Array<{ shape: string }> = routeData.trip?.legs;
+  if (!legs?.length) throw new Error('No route found between waypoints');
 
-  // shape is GeoJSON geometry: { type: 'LineString', coordinates: [[lon, lat], ...] }
-  const coords: [number, number][] = leg.shape.coordinates;
+  // Concatenate all legs; skip the duplicate junction point between legs
+  const coords: [number, number][] = [];
+  for (const leg of legs) {
+    const legCoords = decodePolyline6(leg.shape);
+    coords.push(...(coords.length > 0 ? legCoords.slice(1) : legCoords));
+  }
   const distanceKm: number = routeData.trip.summary.length; // already in km
 
   const route: Feature<LineString> = {
     type: 'Feature',
-    geometry: leg.shape,
+    geometry: { type: 'LineString', coordinates: coords },
     properties: {},
   };
 
   // 2. Fetch elevation for each shape point
-  const heightResponse = await fetch(
-    `${VALHALLA_BASE_URL}/height?api_key=${STADIA_API_KEY}`,
+  const elevationResponse = await fetch(
+    `${VALHALLA_BASE_URL}/elevation/v1?api_key=${STADIA_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -86,18 +121,18 @@ export async function fetchRoute(
     },
   );
 
-  if (!heightResponse.ok) {
-    const body = await heightResponse.text();
-    throw new Error(`Valhalla height error ${heightResponse.status}: ${body}`);
+  if (!elevationResponse.ok) {
+    const body = await elevationResponse.text();
+    throw new Error(`Elevation error ${elevationResponse.status}: ${body}`);
   }
 
-  const heightData = await heightResponse.json();
+  const elevationData = await elevationResponse.json();
   // range_height: [[rangeKm, elevationM], ...]
-  const elevationData: [number, number][] = heightData.range_height ?? [];
-  const heights = elevationData.map(([_, h]) => h);
+  const rangeHeight: [number, number][] = elevationData.range_height ?? [];
+  const heights = rangeHeight.map(([_, h]) => h);
   const { gainM, lossM } = calcGainLoss(heights);
 
   const stats: RouteStats = { distanceKm, gainM, lossM };
 
-  return { route, elevationData, stats };
+  return { route, elevationData: rangeHeight, stats };
 }
