@@ -10,9 +10,6 @@ import ControlsPanel from './ControlsPanel';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_STYLES } from '../constants/map';
 import type { MapStyleId } from '../constants/map';
 
-// Disable Mapbox token requirement — we use Stadia Maps tiles
-MapLibreGL.setAccessToken(null);
-
 export default function RouteMap() {
   // Drive routing side-effects
   useRouting();
@@ -45,7 +42,7 @@ export default function RouteMap() {
 
   const handleLongPress = useCallback(
     (feature: Feature<Point>) => {
-      const [longitude, latitude] = feature.geometry.coordinates;
+const [longitude, latitude] = feature.geometry.coordinates;
       addWaypoint({ longitude, latitude });
     },
     [addWaypoint],
@@ -56,7 +53,7 @@ export default function RouteMap() {
       <MapLibreGL.MapView
         ref={mapViewRef}
         style={styles.map}
-        styleURL={activeStyle.url}
+        mapStyle={activeStyle.style}
         onLongPress={handleLongPress}
         logoEnabled={false}
         attributionEnabled

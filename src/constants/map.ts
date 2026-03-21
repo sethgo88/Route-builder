@@ -1,18 +1,32 @@
 // Map styles — Stadia Maps (200k req/month free). Get a key at stadiamaps.com
 const STADIA_KEY = process.env.EXPO_PUBLIC_STADIA_KEY ?? '';
-const stadia = (style: string) =>
-  `https://tiles.stadiamaps.com/styles/${style}.json?api_key=${STADIA_KEY}`;
+if (__DEV__) console.log('[map] STADIA_KEY present:', STADIA_KEY.length > 0);
+
+// Inline style objects with the API key baked into each tile URL.
+// mapStyle accepts objects directly — no JSON.stringify needed.
+const stadiaStyle = (tileset: string) => ({
+  version: 8 as const,
+  sources: {
+    stadia: {
+      type: 'raster' as const,
+      tiles: [`https://tiles.stadiamaps.com/tiles/${tileset}/{z}/{x}/{y}@2x.png?api_key=${STADIA_KEY}`],
+      tileSize: 256,
+      attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openmaptiles.org/">OpenMapTiles</a> © <a href="http://openstreetmap.org">OpenStreetMap</a> contributors',
+    },
+  },
+  layers: [{ id: 'stadia-raster', type: 'raster' as const, source: 'stadia' }],
+});
 
 export const MAP_STYLES = [
-  { id: 'outdoors',  label: 'Outdoors',  url: stadia('outdoors') },
-  { id: 'terrain',   label: 'Terrain',   url: stadia('stamen_terrain') },
-  { id: 'satellite', label: 'Satellite', url: stadia('alidade_satellite') },
+  { id: 'outdoors',  label: 'Outdoors',  style: stadiaStyle('outdoors') },
+  { id: 'terrain',   label: 'Terrain',   style: stadiaStyle('stamen_terrain') },
+  { id: 'satellite', label: 'Satellite', style: stadiaStyle('alidade_satellite') },
 ] as const;
 
 export type MapStyleId = (typeof MAP_STYLES)[number]['id'];
 
-// Legacy alias used by ControlsPanel offline downloads (defaults to Outdoors)
-export const MAP_STYLE_URL = MAP_STYLES[0].url;
+// Tile URL for offline pack downloads
+export const OFFLINE_TILE_URL = `https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}@2x.png?api_key=${STADIA_KEY}`;
 
 // GraphHopper routing API — register free at graphhopper.com (~500 req/day)
 export const GRAPHHOPPER_BASE_URL = 'https://graphhopper.com/api/1';

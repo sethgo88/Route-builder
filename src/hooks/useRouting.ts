@@ -34,7 +34,7 @@ export function useRouting(): void {
       const { waypoints: wps, isSnapping: snap } = stateRef.current;
       setIsLoading(true);
       try {
-        const result = await fetchRoute(wps, snap);
+        const result = await fetchRoute(wps.map((wp) => wp.coordinate), snap);
         setRoute(result.route);
         setElevationData(result.elevationData);
         setRouteStats(result.stats);

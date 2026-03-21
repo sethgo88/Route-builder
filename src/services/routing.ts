@@ -45,10 +45,7 @@ function buildElevationProfile(
 
 /**
  * Fetches a route from GraphHopper between the given waypoints.
- *
- * @param waypoints  Array of at least 2 coordinates
- * @param snapToTrails  true → 'hike' profile (follows OSM trails)
- *                      false → 'foot' profile (more direct)
+ * Uses the 'foot' profile (free tier limit: car, bike, foot).
  */
 export async function fetchRoute(
   waypoints: Coordinate[],
@@ -60,7 +57,8 @@ export async function fetchRoute(
     );
   }
 
-  const profile = snapToTrails ? 'hike' : 'foot';
+  // GraphHopper free tier only allows: car, bike, foot
+  const profile = 'foot';
 
   const response = await fetch(
     `${GRAPHHOPPER_BASE_URL}/route?key=${GRAPHHOPPER_API_KEY}`,
