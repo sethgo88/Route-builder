@@ -1,5 +1,5 @@
 import type { Feature, LineString } from 'geojson';
-import { GRAPHHOPPER_BASE_URL, GRAPHHOPPER_API_KEY } from '../constants/map';
+import { VALHALLA_BASE_URL, STADIA_API_KEY } from '../constants/map';
 import type { Coordinate, RouteStats } from '../store/routeStore';
 
 export interface RouteResult {
@@ -9,96 +9,95 @@ export interface RouteResult {
   stats: RouteStats;
 }
 
-/** Haversine distance between two lat/lng points in kilometres */
-function haversineKm(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function buildElevationProfile(
-  coords: number[][],
-): [number, number][] {
-  if (coords.length === 0) return [];
-  let distKm = 0;
-  const profile: [number, number][] = [[0, coords[0][2] ?? 0]];
-
-  for (let i = 1; i < coords.length; i++) {
-    const [lon1, lat1] = coords[i - 1];
-    const [lon2, lat2, ele] = coords[i];
-    distKm += haversineKm(lat1, lon1, lat2, lon2);
-    profile.push([distKm, ele ?? 0]);
+function calcGainLoss(heights: number[]): { gainM: number; lossM: number } {
+  let gainM = 0;
+  let lossM = 0;
+  for (let i = 1; i < heights.length; i++) {
+    const diff = heights[i] - heights[i - 1];
+    if (diff > 0) gainM += diff;
+    else lossM += -diff;
   }
-  return profile;
+  return { gainM, lossM };
 }
 
 /**
- * Fetches a route from GraphHopper between the given waypoints.
- * Uses the 'foot' profile (free tier limit: car, bike, foot).
+ * Fetches a route from Stadia Valhalla between the given waypoints.
+ * Uses the 'pedestrian' costing; snapToTrails boosts trail preference.
  */
 export async function fetchRoute(
   waypoints: Coordinate[],
   snapToTrails: boolean,
 ): Promise<RouteResult> {
-  if (!GRAPHHOPPER_API_KEY) {
+  if (!STADIA_API_KEY) {
     throw new Error(
-      'GraphHopper API key not set. Add EXPO_PUBLIC_GRAPHHOPPER_KEY to your .env file.',
+      'Stadia API key not set. Add EXPO_PUBLIC_STADIA_KEY to your .env file.',
     );
   }
 
-  // GraphHopper free tier only allows: car, bike, foot
-  const profile = 'foot';
+  const locations = waypoints.map((wp) => ({ lon: wp.longitude, lat: wp.latitude }));
 
-  const response = await fetch(
-    `${GRAPHHOPPER_BASE_URL}/route?key=${GRAPHHOPPER_API_KEY}`,
+  // 1. Fetch route geometry
+  const routeResponse = await fetch(
+    `${VALHALLA_BASE_URL}/route?api_key=${STADIA_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        points: waypoints.map((wp) => [wp.longitude, wp.latitude]),
-        profile,
-        elevation: true,
-        points_encoded: false,
-        instructions: false,
+        locations,
+        costing: 'pedestrian',
+        costing_options: {
+          pedestrian: { use_trails: snapToTrails ? 1.0 : 0.5 },
+        },
+        shape_format: 'geojson',
+        directions_type: 'none',
       }),
     },
   );
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`GraphHopper error ${response.status}: ${body}`);
+  if (!routeResponse.ok) {
+    const body = await routeResponse.text();
+    throw new Error(`Valhalla route error ${routeResponse.status}: ${body}`);
   }
 
-  const data = await response.json();
-  const path = data.paths?.[0];
-  if (!path) throw new Error('No route found between waypoints');
+  const routeData = await routeResponse.json();
+  const leg = routeData.trip?.legs?.[0];
+  if (!leg) throw new Error('No route found between waypoints');
 
-  const coords: number[][] = path.points.coordinates;
+  // shape is GeoJSON geometry: { type: 'LineString', coordinates: [[lon, lat], ...] }
+  const coords: [number, number][] = leg.shape.coordinates;
+  const distanceKm: number = routeData.trip.summary.length; // already in km
 
   const route: Feature<LineString> = {
     type: 'Feature',
-    geometry: { type: 'LineString', coordinates: coords },
+    geometry: leg.shape,
     properties: {},
   };
 
-  const elevationData = buildElevationProfile(coords);
+  // 2. Fetch elevation for each shape point
+  const heightResponse = await fetch(
+    `${VALHALLA_BASE_URL}/height?api_key=${STADIA_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        shape: coords.map(([lon, lat]) => ({ lon, lat })),
+        range: true,
+      }),
+    },
+  );
 
-  const stats: RouteStats = {
-    distanceKm: (path.distance as number) / 1000,
-    gainM: path.ascend as number ?? 0,
-    lossM: path.descend as number ?? 0,
-  };
+  if (!heightResponse.ok) {
+    const body = await heightResponse.text();
+    throw new Error(`Valhalla height error ${heightResponse.status}: ${body}`);
+  }
+
+  const heightData = await heightResponse.json();
+  // range_height: [[rangeKm, elevationM], ...]
+  const elevationData: [number, number][] = heightData.range_height ?? [];
+  const heights = elevationData.map(([_, h]) => h);
+  const { gainM, lossM } = calcGainLoss(heights);
+
+  const stats: RouteStats = { distanceKm, gainM, lossM };
 
   return { route, elevationData, stats };
 }
