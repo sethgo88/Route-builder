@@ -1,20 +1,29 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapLibreGL from '@maplibre/maplibre-react-native';
-import type { Feature, Point } from 'geojson';
-import { useRouteStore } from '../store/routeStore';
+import type { Feature, MultiLineString, Point } from 'geojson';
+import { useRouteStore, type Coordinate } from '../store/routeStore';
 import { useRouting } from '../hooks/useRouting';
 import WaypointMarker from './WaypointMarker';
+import MidpointMarker from './MidpointMarker';
 import RoutePolyline from './RoutePolyline';
 import ControlsPanel from './ControlsPanel';
+import * as Location from 'expo-location';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_STYLES } from '../constants/map';
 import type { MapStyleId } from '../constants/map';
+import { computeSegmentMidpoints } from '../utils/routeMidpoint';
 
 export default function RouteMap() {
   // Drive routing side-effects
   useRouting();
 
+  // Request location permissions on mount (Android runtime requirement)
+  useEffect(() => {
+    Location.requestForegroundPermissionsAsync();
+  }, []);
+
   const waypoints = useRouteStore((s) => s.waypoints);
+  const route = useRouteStore((s) => s.route);
   const isLoading = useRouteStore((s) => s.isLoading);
   const addWaypoint = useRouteStore((s) => s.addWaypoint);
   const focusCoordinate = useRouteStore((s) => s.focusCoordinate);
@@ -22,11 +31,47 @@ export default function RouteMap() {
 
   const mapViewRef = useRef<MapLibreGL.MapView>(null);
   const cameraRef = useRef<MapLibreGL.Camera>(null);
+  const hasCenteredOnUser = useRef(false);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
 
   const [activeStyleId, setActiveStyleId] = useState<MapStyleId>('outdoors');
   const [layerMenuOpen, setLayerMenuOpen] = useState(false);
 
+  const [dragPreview, setDragPreview] = useState<{
+    coord: Coordinate;
+    neighbors: Coordinate[];
+  } | null>(null);
+
   const activeStyle = MAP_STYLES.find((s) => s.id === activeStyleId) ?? MAP_STYLES[0];
+
+  const segmentMidpoints = useMemo(
+    () =>
+      route
+        ? computeSegmentMidpoints(
+            route.geometry.coordinates,
+            waypoints.map((wp) => wp.coordinate),
+          )
+        : [],
+    [route, waypoints],
+  );
+
+  const dragPreviewShape = useMemo((): Feature<MultiLineString> | null => {
+    if (!dragPreview) return null;
+    const { coord, neighbors } = dragPreview;
+    return {
+      type: 'Feature',
+      geometry: {
+        type: 'MultiLineString',
+        coordinates: neighbors.map((n) => [
+          [coord.longitude, coord.latitude],
+          [n.longitude, n.latitude],
+        ]),
+      },
+      properties: {},
+    };
+  }, [dragPreview]);
+
+  const clearDragPreview = useCallback(() => setDragPreview(null), []);
 
   // Fly to coordinate when set from the elevation profile
   useEffect(() => {
@@ -39,6 +84,30 @@ export default function RouteMap() {
     });
     setFocusCoordinate(null);
   }, [focusCoordinate, setFocusCoordinate]);
+
+  const handleUserLocationUpdate = useCallback((location: MapLibreGL.Location) => {
+    const coord: [number, number] = [location.coords.longitude, location.coords.latitude];
+    setUserLocation(coord);
+    if (!hasCenteredOnUser.current) {
+      hasCenteredOnUser.current = true;
+      cameraRef.current?.setCamera({
+        centerCoordinate: coord,
+        zoomLevel: DEFAULT_ZOOM,
+        animationDuration: 800,
+        animationMode: 'flyTo',
+      });
+    }
+  }, []);
+
+  const handleLocateMe = useCallback(() => {
+    if (!userLocation) return;
+    cameraRef.current?.setCamera({
+      centerCoordinate: userLocation,
+      zoomLevel: DEFAULT_ZOOM,
+      animationDuration: 600,
+      animationMode: 'flyTo',
+    });
+  }, [userLocation]);
 
   const handleLongPress = useCallback(
     (feature: Feature<Point>) => {
@@ -66,11 +135,54 @@ const [longitude, latitude] = feature.geometry.coordinates;
           animationMode="none"
         />
 
+        <MapLibreGL.UserLocation visible onUpdate={handleUserLocationUpdate} />
+
         <RoutePolyline />
 
+        {dragPreviewShape && (
+          <MapLibreGL.ShapeSource id="drag-preview" shape={dragPreviewShape}>
+            <MapLibreGL.LineLayer
+              id="drag-preview-line"
+              style={{ lineColor: '#94a3b8', lineWidth: 2, lineDasharray: [4, 3] }}
+            />
+          </MapLibreGL.ShapeSource>
+        )}
+
         {waypoints.map((wp, index) => (
-          <WaypointMarker key={wp.id} waypoint={wp} index={index} />
+          <WaypointMarker
+            key={wp.id}
+            waypoint={wp}
+            index={index}
+            total={waypoints.length}
+            onDragMove={(coord) => {
+              const neighbors: Coordinate[] = [];
+              if (index > 0) neighbors.push(waypoints[index - 1].coordinate);
+              if (index < waypoints.length - 1) neighbors.push(waypoints[index + 1].coordinate);
+              setDragPreview({ coord, neighbors });
+            }}
+            onDragFinish={clearDragPreview}
+          />
         ))}
+
+        {segmentMidpoints.map((midCoord, index) => {
+          const wp = waypoints[index];
+          const next = waypoints[index + 1];
+          return (
+            <MidpointMarker
+              key={`mid-${wp.id}-${next.id}`}
+              id={`mid-${wp.id}-${next.id}`}
+              coordinate={midCoord}
+              afterIndex={index}
+              onDragMove={(coord) =>
+                setDragPreview({
+                  coord,
+                  neighbors: [wp.coordinate, next.coordinate],
+                })
+              }
+              onDragFinish={clearDragPreview}
+            />
+          );
+        })}
       </MapLibreGL.MapView>
 
       {isLoading && (
@@ -113,6 +225,12 @@ const [longitude, latitude] = feature.geometry.coordinates;
         >
           <Text style={styles.layerButtonIcon}>⊞</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.layerButton, !userLocation && styles.layerButtonDisabled]}
+          onPress={handleLocateMe}
+        >
+          <Text style={styles.layerButtonIcon}>◎</Text>
+        </TouchableOpacity>
       </View>
 
       <ControlsPanel mapViewRef={mapViewRef} />
@@ -150,6 +268,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 4,
+  },
+  layerButtonDisabled: {
+    opacity: 0.4,
   },
   layerButtonIcon: {
     fontSize: 20,
