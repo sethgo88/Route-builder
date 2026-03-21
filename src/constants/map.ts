@@ -1,5 +1,6 @@
 // Map styles — Stadia Maps (200k req/month free). Get a key at stadiamaps.com
-const STADIA_KEY = process.env.EXPO_PUBLIC_STADIA_KEY ?? '';
+export const STADIA_API_KEY = process.env.EXPO_PUBLIC_STADIA_KEY ?? '';
+const STADIA_KEY = STADIA_API_KEY;
 if (__DEV__) console.log('[map] STADIA_KEY present:', STADIA_KEY.length > 0);
 
 // Inline style objects with the API key baked into each tile URL.
@@ -28,9 +29,8 @@ export type MapStyleId = (typeof MAP_STYLES)[number]['id'];
 // Tile URL for offline pack downloads
 export const OFFLINE_TILE_URL = `https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}@2x.png?api_key=${STADIA_KEY}`;
 
-// GraphHopper routing API — register free at graphhopper.com (~500 req/day)
-export const GRAPHHOPPER_BASE_URL = 'https://graphhopper.com/api/1';
-export const GRAPHHOPPER_API_KEY = process.env.EXPO_PUBLIC_GRAPHHOPPER_KEY ?? '';
+// Stadia routing (Valhalla) — same API key as tiles, no separate account needed
+export const VALHALLA_BASE_URL = 'https://api.stadiamaps.com';
 
 // Default map center (Colorado — great for hiking demos)
 export const DEFAULT_CENTER: [number, number] = [-105.6836, 40.3428];
