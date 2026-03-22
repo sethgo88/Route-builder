@@ -1,116 +1,120 @@
-import { create } from 'zustand';
 import type { Feature, LineString } from 'geojson';
+import { create } from 'zustand';
 
 export interface Coordinate {
-  longitude: number;
-  latitude: number;
+	longitude: number;
+	latitude: number;
 }
 
 export interface Waypoint {
-  id: string;
-  coordinate: Coordinate;
+	id: string;
+	coordinate: Coordinate;
 }
 
 export interface RouteStats {
-  distanceKm: number;
-  gainM: number;
-  lossM: number;
+	distanceKm: number;
+	gainM: number;
+	lossM: number;
 }
 
 interface RouteState {
-  waypoints: Waypoint[];
-  route: Feature<LineString> | null;
-  /** [distanceKm, elevationM] pairs for the elevation profile chart */
-  elevationData: [number, number][];
-  routeStats: RouteStats | null;
-  /** When true, routing uses Valhalla use_trails: 1.0 (prefers trails).
-   *  When false, uses use_trails: 0.5 (standard pedestrian). */
-  isSnapping: boolean;
-  isLoading: boolean;
-  /** Set by ElevationProfile on tap; watched by RouteMap to fly camera */
-  focusCoordinate: [number, number] | null;
+	waypoints: Waypoint[];
+	route: Feature<LineString> | null;
+	/** [distanceKm, elevationM] pairs for the elevation profile chart */
+	elevationData: [number, number][];
+	routeStats: RouteStats | null;
+	/** When true, routing uses Valhalla use_trails: 1.0 (prefers trails).
+	 *  When false, uses use_trails: 0.5 (standard pedestrian). */
+	isSnapping: boolean;
+	isLoading: boolean;
+	/** Set by ElevationProfile on tap; watched by RouteMap to fly camera */
+	focusCoordinate: [number, number] | null;
 }
 
 interface RouteActions {
-  addWaypoint: (coord: Coordinate) => void;
-  insertWaypoint: (afterIndex: number, coord: Coordinate) => void;
-  moveWaypoint: (id: string, coord: Coordinate) => void;
-  removeWaypoint: (id: string) => void;
-  undoLastWaypoint: () => void;
-  setRoute: (route: Feature<LineString> | null) => void;
-  setElevationData: (data: [number, number][]) => void;
-  setRouteStats: (stats: RouteStats | null) => void;
-  setIsSnapping: (value: boolean) => void;
-  setIsLoading: (value: boolean) => void;
-  setFocusCoordinate: (coord: [number, number] | null) => void;
-  clearAll: () => void;
-  /** Load an array of coordinates as waypoints (e.g. from GPX import) */
-  loadWaypoints: (coords: Coordinate[]) => void;
+	addWaypoint: (coord: Coordinate) => void;
+	insertWaypoint: (afterIndex: number, coord: Coordinate) => void;
+	moveWaypoint: (id: string, coord: Coordinate) => void;
+	removeWaypoint: (id: string) => void;
+	undoLastWaypoint: () => void;
+	setRoute: (route: Feature<LineString> | null) => void;
+	setElevationData: (data: [number, number][]) => void;
+	setRouteStats: (stats: RouteStats | null) => void;
+	setIsSnapping: (value: boolean) => void;
+	setIsLoading: (value: boolean) => void;
+	setFocusCoordinate: (coord: [number, number] | null) => void;
+	clearAll: () => void;
+	/** Load an array of coordinates as waypoints (e.g. from GPX import) */
+	loadWaypoints: (coords: Coordinate[]) => void;
 }
 
 function makeId(): string {
-  return crypto.randomUUID();
+	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+		const r = (Math.random() * 16) | 0;
+		const v = c === "x" ? r : (r & 0x3) | 0x8;
+		return v.toString(16);
+	});
 }
 
 export const useRouteStore = create<RouteState & RouteActions>((set) => ({
-  waypoints: [],
-  route: null,
-  elevationData: [],
-  routeStats: null,
-  isSnapping: true,
-  isLoading: false,
-  focusCoordinate: null,
+	waypoints: [],
+	route: null,
+	elevationData: [],
+	routeStats: null,
+	isSnapping: true,
+	isLoading: false,
+	focusCoordinate: null,
 
-  addWaypoint: (coord) =>
-    set((state) => ({
-      waypoints: [...state.waypoints, { id: makeId(), coordinate: coord }],
-    })),
+	addWaypoint: (coord) =>
+		set((state) => ({
+			waypoints: [...state.waypoints, { id: makeId(), coordinate: coord }],
+		})),
 
-  insertWaypoint: (afterIndex, coord) =>
-    set((state) => {
-      const wps = [...state.waypoints];
-      wps.splice(afterIndex + 1, 0, { id: makeId(), coordinate: coord });
-      return { waypoints: wps };
-    }),
+	insertWaypoint: (afterIndex, coord) =>
+		set((state) => {
+			const wps = [...state.waypoints];
+			wps.splice(afterIndex + 1, 0, { id: makeId(), coordinate: coord });
+			return { waypoints: wps };
+		}),
 
-  moveWaypoint: (id, coord) =>
-    set((state) => ({
-      waypoints: state.waypoints.map((wp) =>
-        wp.id === id ? { ...wp, coordinate: coord } : wp,
-      ),
-    })),
+	moveWaypoint: (id, coord) =>
+		set((state) => ({
+			waypoints: state.waypoints.map((wp) =>
+				wp.id === id ? { ...wp, coordinate: coord } : wp,
+			),
+		})),
 
-  removeWaypoint: (id) =>
-    set((state) => ({
-      waypoints: state.waypoints.filter((wp) => wp.id !== id),
-    })),
+	removeWaypoint: (id) =>
+		set((state) => ({
+			waypoints: state.waypoints.filter((wp) => wp.id !== id),
+		})),
 
-  undoLastWaypoint: () =>
-    set((state) => ({
-      waypoints: state.waypoints.slice(0, -1),
-    })),
+	undoLastWaypoint: () =>
+		set((state) => ({
+			waypoints: state.waypoints.slice(0, -1),
+		})),
 
-  setRoute: (route) => set({ route }),
-  setElevationData: (elevationData) => set({ elevationData }),
-  setRouteStats: (routeStats) => set({ routeStats }),
-  setIsSnapping: (isSnapping) => set({ isSnapping }),
-  setIsLoading: (isLoading) => set({ isLoading }),
-  setFocusCoordinate: (focusCoordinate) => set({ focusCoordinate }),
+	setRoute: (route) => set({ route }),
+	setElevationData: (elevationData) => set({ elevationData }),
+	setRouteStats: (routeStats) => set({ routeStats }),
+	setIsSnapping: (isSnapping) => set({ isSnapping }),
+	setIsLoading: (isLoading) => set({ isLoading }),
+	setFocusCoordinate: (focusCoordinate) => set({ focusCoordinate }),
 
-  clearAll: () =>
-    set({
-      waypoints: [],
-      route: null,
-      elevationData: [],
-      routeStats: null,
-      focusCoordinate: null,
-    }),
+	clearAll: () =>
+		set({
+			waypoints: [],
+			route: null,
+			elevationData: [],
+			routeStats: null,
+			focusCoordinate: null,
+		}),
 
-  loadWaypoints: (coords) =>
-    set({
-      waypoints: coords.map((coord) => ({ id: makeId(), coordinate: coord })),
-      route: null,
-      elevationData: [],
-      routeStats: null,
-    }),
+	loadWaypoints: (coords) =>
+		set({
+			waypoints: coords.map((coord) => ({ id: makeId(), coordinate: coord })),
+			route: null,
+			elevationData: [],
+			routeStats: null,
+		}),
 }));
