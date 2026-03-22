@@ -6,22 +6,29 @@ if (__DEV__) console.log('[map] STADIA_KEY present:', STADIA_KEY.length > 0);
 // Inline style objects with the API key baked into each tile URL.
 // mapStyle accepts objects directly — no JSON.stringify needed.
 const stadiaStyle = (tileset: string) => ({
-  version: 8 as const,
-  sources: {
-    stadia: {
-      type: 'raster' as const,
-      tiles: [`https://tiles.stadiamaps.com/tiles/${tileset}/{z}/{x}/{y}@2x.png?api_key=${STADIA_KEY}`],
-      tileSize: 256,
-      attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openmaptiles.org/">OpenMapTiles</a> © <a href="http://openstreetmap.org">OpenStreetMap</a> contributors',
-    },
-  },
-  layers: [{ id: 'stadia-raster', type: 'raster' as const, source: 'stadia' }],
+	version: 8 as const,
+	sources: {
+		stadia: {
+			type: 'raster' as const,
+			tiles: [
+				`https://tiles.stadiamaps.com/tiles/${tileset}/{z}/{x}/{y}@2x.png?api_key=${STADIA_KEY}`,
+			],
+			tileSize: 256,
+			attribution:
+				'© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openmaptiles.org/">OpenMapTiles</a> © <a href="http://openstreetmap.org">OpenStreetMap</a> contributors',
+		},
+	},
+	layers: [{ id: 'stadia-raster', type: 'raster' as const, source: 'stadia' }],
 });
 
 export const MAP_STYLES = [
-  { id: 'outdoors',  label: 'Outdoors',  style: stadiaStyle('outdoors') },
-  { id: 'terrain',   label: 'Terrain',   style: stadiaStyle('stamen_terrain') },
-  { id: 'satellite', label: 'Satellite', style: stadiaStyle('alidade_satellite') },
+	{ id: 'outdoors', label: 'Outdoors', style: stadiaStyle('outdoors') },
+	{ id: 'terrain', label: 'Terrain', style: stadiaStyle('stamen_terrain') },
+	{
+		id: 'satellite',
+		label: 'Satellite',
+		style: stadiaStyle('alidade_satellite'),
+	},
 ] as const;
 
 export type MapStyleId = (typeof MAP_STYLES)[number]['id'];

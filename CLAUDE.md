@@ -17,7 +17,7 @@ expo prebuild --clean  # regenerate native Android project
 ```
 
 ## Stack
-React Native 0.76, Expo 52 (bare workflow), MapLibre GL (`@maplibre/maplibre-react-native`), Zustand, `react-native-svg`, `fast-xml-parser`, Stadia Maps (tiles + Valhalla routing)
+React Native 0.76, Expo 52 (bare workflow), MapLibre GL (`@maplibre/maplibre-react-native`), Zustand, TanStack Query, Zod v4, `react-native-svg`, `fast-xml-parser`, Stadia Maps (tiles + Valhalla routing)
 
 ## Folder Structure
 ```
@@ -27,9 +27,10 @@ src/
   store/
     routeStore.ts       Single Zustand store — waypoints, route, elevation, stats
   hooks/
-    useRouting.ts       Side-effect hook: debounced route fetch on waypoint change
+    useRouting.ts       TanStack Query hook: debounced route fetch on waypoint change
+    useDebounce.ts      Generic debounce utility
   services/
-    routing.ts          Stadia Valhalla API client (route + elevation)
+    routing.ts          Stadia Valhalla API client (route + elevation) — Zod-validated
     gpxParser.ts        GPX XML → Coordinate[] via fast-xml-parser
     gpxExport.ts        Coordinate[] → GPX XML + native share sheet
   components/
@@ -39,16 +40,12 @@ src/
     RoutePolyline.tsx   ShapeSource + LineLayer for the route line
     ControlsPanel.tsx   Bottom sheet — style picker, snap toggle, stats, export
     ElevationProfile.tsx  SVG elevation chart with tap-to-fly-camera
+docs/
+  architecture.md       Data flow, routing details, store shape, component map
 ```
 
 ## Routing Architecture
-Two POST requests per route calculation:
-1. `POST https://api.stadiamaps.com/route/v1` — pedestrian costing, returns polyline6-encoded shape
-2. `POST https://api.stadiamaps.com/elevation/v1` — takes `encoded_polyline`, returns `range_height: [[km, m], ...]`
-
-`leg.shape` is a polyline6 string (precision 1e6, lat/lon order) — decoded in `decodePolyline6()` in `routing.ts`.
-Multi-waypoint routes have N-1 legs; all legs are concatenated (skip first point of each subsequent leg).
-`snapToTrails` maps to `use_trails: 1.0` vs `0.5` in `costing_options.pedestrian`.
+See `docs/architecture.md` for full data flow, polyline6 decoding, multi-leg concatenation, and API details.
 
 ## Environment
 ```
