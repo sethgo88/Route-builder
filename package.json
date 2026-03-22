@@ -6,7 +6,10 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "prebuild": "expo prebuild --clean"
+    "prebuild": "expo prebuild --clean",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@gorhom/bottom-sheet": "^4.6.4",
@@ -33,6 +36,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
+    "@biomejs/biome": "^2.3.2",
     "@types/geojson": "^7946.0.14",
     "@types/react": "~18.3.12",
     "typescript": "^5.3.0"
