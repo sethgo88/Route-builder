@@ -23,8 +23,8 @@ interface RouteState {
   /** [distanceKm, elevationM] pairs for the elevation profile chart */
   elevationData: [number, number][];
   routeStats: RouteStats | null;
-  /** When true, routing uses GraphHopper 'hike' profile (follows trails).
-   *  When false, uses 'foot' profile (less strict trail following). */
+  /** When true, routing uses Valhalla use_trails: 1.0 (prefers trails).
+   *  When false, uses use_trails: 0.5 (standard pedestrian). */
   isSnapping: boolean;
   isLoading: boolean;
   /** Set by ElevationProfile on tap; watched by RouteMap to fly camera */
@@ -49,7 +49,7 @@ interface RouteActions {
 }
 
 function makeId(): string {
-  return `wp-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  return crypto.randomUUID();
 }
 
 export const useRouteStore = create<RouteState & RouteActions>((set) => ({

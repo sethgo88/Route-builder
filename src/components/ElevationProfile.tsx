@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { type GestureResponderEvent, StyleSheet, Text, View } from 'react-native';
 import Svg, {
   Defs,
   LinearGradient,
@@ -94,7 +94,7 @@ export default function ElevationProfile({ width }: Props) {
   );
 
   const handlePress = useCallback(
-    (evt: { nativeEvent: { locationX: number } }) => {
+    (evt: GestureResponderEvent) => {
       if (!chart || !route || elevationData.length < 2) return;
       const touchX = evt.nativeEvent.locationX;
       const innerW = width - PAD.left - PAD.right;
@@ -144,7 +144,7 @@ export default function ElevationProfile({ width }: Props) {
       <Svg
         width={width}
         height={CHART_HEIGHT}
-        onPress={handlePress as any}
+        onPress={handlePress}
       >
         <Defs>
           <LinearGradient id="eleGrad" x1="0" y1="0" x2="0" y2="1">

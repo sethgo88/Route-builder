@@ -108,7 +108,7 @@ export default function ControlsPanel({ mapViewRef }: Props) {
         [number, number],
       ];
 
-      const packName = `region-${Date.now()}`;
+      const packName = `region-${crypto.randomUUID()}`;
       setOfflineProgress(0);
 
       await MapLibreGL.offlineManager.createPack(

@@ -8,6 +8,24 @@ export interface ParsedGpx {
   trackPoints: Coordinate[];
 }
 
+interface GpxPoint {
+  '@_lat': string | number;
+  '@_lon': string | number;
+}
+
+interface GpxTrkseg {
+  trkpt?: GpxPoint[];
+}
+
+interface GpxTrk {
+  trkseg?: GpxTrkseg[];
+}
+
+interface GpxRoot {
+  wpt?: GpxPoint[];
+  trk?: GpxTrk[];
+}
+
 function toNum(val: string | number | undefined): number {
   return typeof val === 'number' ? val : parseFloat(String(val ?? '0'));
 }
@@ -23,34 +41,26 @@ export function parseGpx(gpxContent: string): ParsedGpx {
     isArray: (name) => ['wpt', 'trkpt', 'trk', 'trkseg'].includes(name),
   });
 
-  const result = parser.parse(gpxContent);
+  const result = parser.parse(gpxContent) as { gpx?: GpxRoot };
   const gpx = result?.gpx;
   if (!gpx) throw new Error('Invalid GPX file: missing <gpx> root element');
 
   // Parse <wpt> waypoints
-  const wptArray: unknown[] = Array.isArray(gpx.wpt) ? gpx.wpt : gpx.wpt ? [gpx.wpt] : [];
-  const waypoints: Coordinate[] = wptArray.map((wpt: any) => ({
+  const wptArray: GpxPoint[] = gpx.wpt ?? [];
+  const waypoints: Coordinate[] = wptArray.map((wpt) => ({
     latitude: toNum(wpt['@_lat']),
     longitude: toNum(wpt['@_lon']),
   }));
 
   // Parse <trk>/<trkseg>/<trkpt> track points
   const trackPoints: Coordinate[] = [];
-  const tracks: unknown[] = Array.isArray(gpx.trk) ? gpx.trk : gpx.trk ? [gpx.trk] : [];
+  const tracks: GpxTrk[] = gpx.trk ?? [];
 
-  for (const trk of tracks as any[]) {
-    const segs: unknown[] = Array.isArray(trk.trkseg)
-      ? trk.trkseg
-      : trk.trkseg
-        ? [trk.trkseg]
-        : [];
-    for (const seg of segs as any[]) {
-      const pts: unknown[] = Array.isArray(seg.trkpt)
-        ? seg.trkpt
-        : seg.trkpt
-          ? [seg.trkpt]
-          : [];
-      for (const pt of pts as any[]) {
+  for (const trk of tracks) {
+    const segs: GpxTrkseg[] = trk.trkseg ?? [];
+    for (const seg of segs) {
+      const pts: GpxPoint[] = seg.trkpt ?? [];
+      for (const pt of pts) {
         trackPoints.push({
           latitude: toNum(pt['@_lat']),
           longitude: toNum(pt['@_lon']),

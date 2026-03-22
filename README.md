@@ -8,7 +8,7 @@ An Android app for building hiking and trail routes, built as a free replacement
 
 - **Long-press** the map to drop waypoints (A, B, C…)
 - Routes are automatically recalculated whenever waypoints change
-- **Snap to trails** routes along OSM hiking trails using GraphHopper's `hike` profile
+- **Snap to trails** routes along OSM hiking trails using Valhalla's `use_trails` preference
 - **Drag any waypoint** to reposition it — the route updates after a short debounce
 - **Tap a waypoint** to remove it
 - **Elevation profile** chart with tap-to-fly-camera interaction
@@ -24,8 +24,8 @@ An Android app for building hiking and trail routes, built as a free replacement
 |---|---|---|
 | App framework | Expo (bare workflow) + React Native | React patterns, native Android output |
 | Map rendering | `@maplibre/maplibre-react-native` | Open-source, free, no Mapbox token needed |
-| Map tiles | OpenFreeMap (`tiles.openfreemap.org`) | 100% free, no API key, good vector tile quality |
-| Routing & trail snapping | GraphHopper Directions API | Free tier (~500 req/day), `hike` profile follows OSM trails natively |
+| Map tiles | Stadia Maps (`tiles.stadiamaps.com`) | 200k req/month free, multiple styles including Outdoors and Terrain |
+| Routing & trail snapping | Stadia Valhalla (`api.stadiamaps.com`) | Same API key as tiles, pedestrian costing with `use_trails` preference |
 | State management | Zustand | Minimal boilerplate, selector-based subscriptions |
 | Bottom sheet | `@gorhom/bottom-sheet` | Smooth snap-point sheets, well-maintained |
 | Elevation chart | `react-native-svg` | Lightweight, no native deps beyond RN |
@@ -43,13 +43,13 @@ Route-builder/
 ├── .env.example                   Copy to .env and fill in your API key
 └── src/
     ├── constants/
-    │   └── map.ts                 Tile URLs, GraphHopper base URL, default map center
+    │   └── map.ts                 Tile URLs, Valhalla base URL, Stadia API key, map defaults
     ├── store/
     │   └── routeStore.ts          Single Zustand store for all app state
     ├── hooks/
     │   └── useRouting.ts          Side-effect hook: watches waypoints, fetches routes
     ├── services/
-    │   ├── routing.ts             GraphHopper API client + elevation profile builder
+    │   ├── routing.ts             Stadia Valhalla API client (route + elevation)
     │   ├── gpxParser.ts           GPX XML → Coordinate[] using fast-xml-parser
     │   └── gpxExport.ts           Coordinate[] → GPX XML string + share sheet
     └── components/
@@ -67,18 +67,18 @@ Route-builder/
 ### 1. Install dependencies
 
 ```bash
-npm install
+pnpm install
 ```
 
-### 2. Get a GraphHopper API key
+### 2. Get a Stadia Maps API key
 
-Register for free at [graphhopper.com](https://www.graphhopper.com/). The free tier gives ~500 route requests per day, which is plenty for personal use.
+Register for free at [stadiamaps.com](https://stadiamaps.com/). The free tier includes 200k tile requests/month and access to the Valhalla routing API — both covered by the same key.
 
 ### 3. Add your API key
 
 ```bash
 cp .env.example .env
-# Edit .env and set EXPO_PUBLIC_GRAPHHOPPER_KEY=your_key_here
+# Edit .env and set EXPO_PUBLIC_STADIA_KEY=your_key_here
 ```
 
 ### 4. Run on Android
@@ -87,10 +87,10 @@ You need a physical device or emulator with Android Studio set up. MapLibre requ
 
 ```bash
 # First time: generate native Android project
-npm run prebuild
+pnpm prebuild
 
 # Then run
-npm run android
+pnpm android
 ```
 
 ---
@@ -101,13 +101,13 @@ npm run android
 
 `@maplibre/maplibre-react-native` includes native C++ code (the GL rendering engine). Expo Go only supports pure-JS libraries — native modules require either a custom dev client or the bare workflow. The bare workflow gives us full native access while keeping the Expo toolchain (OTA updates, EAS Build, etc.).
 
-### Why GraphHopper over OSRM or OpenRouteService?
+### Why Stadia Valhalla over OSRM or GraphHopper?
 
-OSRM is primarily road-optimised — it treats hiking like walking on roads and ignores trail metadata. OpenRouteService has a good hiking profile but GraphHopper was chosen because it also returns 3D coordinates (elevation per point) in the same response, which feeds the elevation profile without a second API call. GraphHopper's `hike` profile is built on OSM `highway=path/track/footway` tags, so it naturally routes along mapped trails.
+OSRM is primarily road-optimised and ignores trail metadata. Stadia Valhalla was chosen because it uses the same API key as the map tiles (no extra account), has a generous free tier, and the `pedestrian` costing with `use_trails` preference naturally routes along OSM `highway=path/track/footway` tags. Elevation is fetched via a separate `POST /elevation/v1` call that accepts the encoded polyline directly.
 
-### Why is "trail snapping" just the routing profile?
+### Why is "trail snapping" just a costing option?
 
-In many route-builder apps, "snap to trail" is a separate map-matching step where a GPS trace is corrected to the nearest road. Here, snapping is achieved more simply: when the `hike` profile is active, GraphHopper's router only selects paths that exist in OSM, so the resulting polyline already follows real trails. A separate map-matching API call would only be needed if you were correcting noisy GPS recordings — not needed for intent-based route planning.
+In many route-builder apps, "snap to trail" is a separate map-matching step where a GPS trace is corrected to the nearest road. Here, snapping is achieved more simply: when enabled, Valhalla's `use_trails: 1.0` option biases the router toward paths that exist in OSM, so the resulting polyline already follows real trails. A separate map-matching API call would only be needed if you were correcting noisy GPS recordings — not needed for intent-based route planning.
 
 ### Why Zustand over Redux or React Context?
 
