@@ -5,6 +5,7 @@ import type { RouteStats, Waypoint } from '../store/routeStore';
 export interface SavedRoute {
 	id: number;
 	name: string;
+	color: string;
 	waypoints: Waypoint[];
 	geometry: Feature<LineString>;
 	stats: RouteStats | null;
@@ -52,6 +53,7 @@ export function initDb(): void {
 		'ALTER TABLE routes ADD COLUMN remote_id  TEXT',
 		'ALTER TABLE routes ADD COLUMN deleted_at TEXT',
 		'ALTER TABLE routes ADD COLUMN updated_at TEXT',
+		"ALTER TABLE routes ADD COLUMN color TEXT NOT NULL DEFAULT '#3b82f6'",
 	]) {
 		try {
 			db.execSync(sql);
@@ -63,6 +65,7 @@ export function initDb(): void {
 
 export function saveRoute(
 	name: string,
+	color: string,
 	waypoints: Waypoint[],
 	geometry: Feature<LineString>,
 	stats: RouteStats | null,
@@ -70,8 +73,9 @@ export function saveRoute(
 	const db = getDb();
 	const now = new Date().toISOString();
 	const result = db.runSync(
-		'INSERT INTO routes (name, waypoints, geometry, stats, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+		'INSERT INTO routes (name, color, waypoints, geometry, stats, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
 		name,
+		color,
 		JSON.stringify(waypoints),
 		JSON.stringify(geometry),
 		stats ? JSON.stringify(stats) : null,
@@ -81,11 +85,23 @@ export function saveRoute(
 	return result.lastInsertRowId;
 }
 
+export function updateRoute(id: number, name: string, color: string): void {
+	const db = getDb();
+	db.runSync(
+		'UPDATE routes SET name = ?, color = ?, updated_at = ? WHERE id = ?',
+		name,
+		color,
+		new Date().toISOString(),
+		id,
+	);
+}
+
 export function listRoutes(): SavedRoute[] {
 	const db = getDb();
 	const rows = db.getAllSync<{
 		id: number;
 		name: string;
+		color: string;
 		waypoints: string;
 		geometry: string;
 		stats: string | null;
@@ -95,6 +111,7 @@ export function listRoutes(): SavedRoute[] {
 	return rows.map((row) => ({
 		id: row.id,
 		name: row.name,
+		color: row.color ?? '#3b82f6',
 		waypoints: JSON.parse(row.waypoints) as Waypoint[],
 		geometry: JSON.parse(row.geometry) as Feature<LineString>,
 		stats: row.stats ? (JSON.parse(row.stats) as RouteStats) : null,
@@ -107,6 +124,7 @@ export function getRoute(id: number): SavedRoute | null {
 	const row = db.getFirstSync<{
 		id: number;
 		name: string;
+		color: string;
 		waypoints: string;
 		geometry: string;
 		stats: string | null;
@@ -116,6 +134,7 @@ export function getRoute(id: number): SavedRoute | null {
 	return {
 		id: row.id,
 		name: row.name,
+		color: row.color ?? '#3b82f6',
 		waypoints: JSON.parse(row.waypoints) as Waypoint[],
 		geometry: JSON.parse(row.geometry) as Feature<LineString>,
 		stats: row.stats ? (JSON.parse(row.stats) as RouteStats) : null,
@@ -173,11 +192,7 @@ export function getRouteForSync(localId: number): RouteForSync | null {
 /** Store the UUID assigned by Supabase after a successful upsert. */
 export function markRouteSynced(localId: number, remoteId: string): void {
 	const db = getDb();
-	db.runSync(
-		'UPDATE routes SET remote_id = ? WHERE id = ?',
-		remoteId,
-		localId,
-	);
+	db.runSync('UPDATE routes SET remote_id = ? WHERE id = ?', remoteId, localId);
 }
 
 /** All remote_ids that already exist locally (for dedup during pull). */

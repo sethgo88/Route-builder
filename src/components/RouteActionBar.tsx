@@ -1,25 +1,44 @@
 import { Check, X } from 'lucide-react-native';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { saveRoute } from '../services/db';
 import { pushRoute } from '../services/syncService';
 import { useRouteStore } from '../store/routeStore';
 import NameRouteModal from './NameRouteModal';
+import UnsavedChangesModal from './UnsavedChangesModal';
 
 interface Props {
 	onRouteSaved: () => void;
+}
+
+function makeDefaultTitle(): string {
+	const now = new Date();
+	const dd = String(now.getDate()).padStart(2, '0');
+	const mm = String(now.getMonth() + 1).padStart(2, '0');
+	const yy = String(now.getFullYear()).slice(-2);
+	const hh = String(now.getHours()).padStart(2, '0');
+	const min = String(now.getMinutes()).padStart(2, '0');
+	return `Route ${dd}-${mm}-${yy} ${hh}:${min}`;
 }
 
 export default function RouteActionBar({ onRouteSaved }: Props) {
 	const waypoints = useRouteStore((s) => s.waypoints);
 	const route = useRouteStore((s) => s.route);
 	const routeStats = useRouteStore((s) => s.routeStats);
+	const routeColor = useRouteStore((s) => s.routeColor);
 	const clearAll = useRouteStore((s) => s.clearAll);
 	const setEditingMode = useRouteStore((s) => s.setEditingMode);
 
 	const [namingVisible, setNamingVisible] = useState(false);
+	const [leaveGuardVisible, setLeaveGuardVisible] = useState(false);
 
 	const canSave = waypoints.length >= 2 && route !== null;
+	const hasUnsaved = waypoints.length > 0;
+
+	const defaultTitle = useMemo(
+		() => (namingVisible ? makeDefaultTitle() : ''),
+		[namingVisible],
+	);
 
 	const handleSavePress = useCallback(() => {
 		if (!canSave) return;
@@ -31,7 +50,7 @@ export default function RouteActionBar({ onRouteSaved }: Props) {
 			if (!route) return;
 			let localId: number;
 			try {
-				localId = saveRoute(name, waypoints, route, routeStats);
+				localId = saveRoute(name, routeColor, waypoints, route, routeStats);
 			} catch (err: unknown) {
 				Alert.alert(
 					'Save failed',
@@ -39,41 +58,73 @@ export default function RouteActionBar({ onRouteSaved }: Props) {
 				);
 				return;
 			}
-			// fire-and-forget background sync
 			pushRoute(localId).catch(() => {});
 			setNamingVisible(false);
 			clearAll();
 			setEditingMode('view');
 			onRouteSaved();
 		},
-		[route, waypoints, routeStats, clearAll, setEditingMode, onRouteSaved],
+		[
+			route,
+			routeColor,
+			waypoints,
+			routeStats,
+			clearAll,
+			setEditingMode,
+			onRouteSaved,
+		],
 	);
 
-	const handleCancel = useCallback(() => {
-		if (waypoints.length === 0) {
+	const handleCancelPress = useCallback(() => {
+		if (!hasUnsaved) {
 			clearAll();
 			setEditingMode('view');
 			return;
 		}
-		Alert.alert('Discard route?', 'All waypoints will be removed.', [
-			{ text: 'Keep editing', style: 'cancel' },
-			{
-				text: 'Discard',
-				style: 'destructive',
-				onPress: () => {
-					clearAll();
-					setEditingMode('view');
-				},
-			},
-		]);
-	}, [waypoints.length, clearAll, setEditingMode]);
+		setLeaveGuardVisible(true);
+	}, [hasUnsaved, clearAll, setEditingMode]);
+
+	const handleLeaveGuardContinue = useCallback(() => {
+		setLeaveGuardVisible(false);
+		clearAll();
+		setEditingMode('view');
+	}, [clearAll, setEditingMode]);
+
+	const handleLeaveGuardSaveAndContinue = useCallback(() => {
+		if (!route) {
+			setLeaveGuardVisible(false);
+			clearAll();
+			setEditingMode('view');
+			return;
+		}
+		const title = makeDefaultTitle();
+		let localId: number | null = null;
+		try {
+			localId = saveRoute(title, routeColor, waypoints, route, routeStats);
+		} catch {
+			// save failed silently — still navigate away
+		}
+		if (localId !== null) pushRoute(localId).catch(() => {});
+		setLeaveGuardVisible(false);
+		clearAll();
+		setEditingMode('view');
+		onRouteSaved();
+	}, [
+		route,
+		routeColor,
+		waypoints,
+		routeStats,
+		clearAll,
+		setEditingMode,
+		onRouteSaved,
+	]);
 
 	return (
 		<>
 			<View style={styles.bar}>
 				<TouchableOpacity
 					style={styles.cancelButton}
-					onPress={handleCancel}
+					onPress={handleCancelPress}
 					activeOpacity={0.8}
 				>
 					<X size={18} color="#374151" />
@@ -109,8 +160,16 @@ export default function RouteActionBar({ onRouteSaved }: Props) {
 
 			<NameRouteModal
 				visible={namingVisible}
+				defaultName={defaultTitle}
 				onSave={handleNameConfirm}
 				onCancel={() => setNamingVisible(false)}
+			/>
+
+			<UnsavedChangesModal
+				visible={leaveGuardVisible}
+				onCancel={() => setLeaveGuardVisible(false)}
+				onContinue={handleLeaveGuardContinue}
+				onSaveAndContinue={handleLeaveGuardSaveAndContinue}
 			/>
 		</>
 	);

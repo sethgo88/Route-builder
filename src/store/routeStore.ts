@@ -18,8 +18,10 @@ export interface RouteStats {
 	lossM: number;
 }
 
-/** 'view' = read-only, no editing; 'creating' = user is building a new route */
-export type EditingMode = 'view' | 'creating';
+/** 'view' = idle list; 'creating' = new route; 'editing' = editing a saved route */
+export type EditingMode = 'view' | 'creating' | 'editing';
+
+export const DEFAULT_ROUTE_COLOR = '#3b82f6';
 
 interface RouteState {
 	editingMode: EditingMode;
@@ -34,8 +36,12 @@ interface RouteState {
 	isLoading: boolean;
 	/** Set by ElevationProfile on tap; watched by RouteMap to fly camera */
 	focusCoordinate: [number, number] | null;
-	/** ID of the route currently loaded in view mode; null when creating or empty */
+	/** ID of the route currently loaded in editing mode; null otherwise */
 	activeRouteId: number | null;
+	/** Current route line color (hex). Used for new routes and when editing. */
+	routeColor: string;
+	/** Route name while in editing mode. */
+	editingRouteName: string;
 	/** Indices of waypoints currently being dragged; adjacent route segments are suppressed */
 	draggingWaypointIndices: number[];
 	/** Segment indices that render as dotted straight lines after drag ends, until route resolves */
@@ -59,13 +65,15 @@ interface RouteActions {
 	setIsSnapping: (value: boolean) => void;
 	setIsLoading: (value: boolean) => void;
 	setFocusCoordinate: (coord: [number, number] | null) => void;
+	setRouteColor: (color: string) => void;
+	setEditingRouteName: (name: string) => void;
 	/** Clears only the active editing state (waypoints, route, elevation, stats).
 	 *  Does NOT affect persisted saved routes in the database. */
 	clearAll: () => void;
 	/** Load an array of coordinates as waypoints (e.g. from GPX import) */
 	loadWaypoints: (coords: Coordinate[]) => void;
-	/** Load a saved route by id into view (read-only) mode */
-	loadRouteForViewing: (id: number) => void;
+	/** Load a saved route by id into editing mode */
+	loadRouteForEditing: (id: number) => void;
 	setDraggingIndices: (indices: number[]) => void;
 	clearDraggingIndices: () => void;
 	setPendingDragSegments: (indices: number[]) => void;
@@ -91,12 +99,16 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 	isLoading: false,
 	focusCoordinate: null,
 	activeRouteId: null,
+	routeColor: DEFAULT_ROUTE_COLOR,
+	editingRouteName: '',
 	draggingWaypointIndices: [],
 	pendingDragSegments: [],
 	dragPreviewCoord: null,
 	dragPreviewNeighbors: [],
 
 	setEditingMode: (editingMode) => set({ editingMode }),
+	setRouteColor: (routeColor) => set({ routeColor }),
+	setEditingRouteName: (editingRouteName) => set({ editingRouteName }),
 
 	addWaypoint: (coord) =>
 		set((state) => ({
@@ -142,6 +154,8 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 			routeStats: null,
 			focusCoordinate: null,
 			activeRouteId: null,
+			routeColor: DEFAULT_ROUTE_COLOR,
+			editingRouteName: '',
 		}),
 
 	loadWaypoints: (coords) =>
@@ -152,15 +166,17 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 			routeStats: null,
 		}),
 
-	loadRouteForViewing: (id) => {
+	loadRouteForEditing: (id) => {
 		const saved = getRoute(id);
 		if (!saved) return;
 		set({
 			activeRouteId: id,
-			editingMode: 'view',
+			editingMode: 'editing',
 			waypoints: saved.waypoints,
 			route: saved.geometry,
 			routeStats: saved.stats,
+			routeColor: saved.color,
+			editingRouteName: saved.name,
 			elevationData: [],
 			focusCoordinate: null,
 		});
