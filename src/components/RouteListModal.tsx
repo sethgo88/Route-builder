@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react-native';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
 	ActivityIndicator,
 	Alert,
@@ -12,9 +12,9 @@ import {
 	TouchableOpacity,
 	View,
 } from 'react-native';
+import { useRoutes } from '../hooks/useRoutes';
 import { deleteRoute } from '../services/db';
 import { useRouteStore } from '../store/routeStore';
-import { useRoutes } from '../hooks/useRoutes';
 
 interface Props {
 	open: boolean;
@@ -39,7 +39,6 @@ export default function RouteListModal({ open, onClose }: Props) {
 	const loadRouteForViewing = useRouteStore((s) => s.loadRouteForViewing);
 	const { data: routes, isLoading } = useRoutes();
 
-	const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [pressedId, setPressedId] = useState<number | null>(null);
 
 	const handleSelect = useCallback(
@@ -89,9 +88,7 @@ export default function RouteListModal({ open, onClose }: Props) {
 				) : !routes || routes.length === 0 ? (
 					<View style={styles.centered}>
 						<Text style={styles.emptyText}>No saved routes yet.</Text>
-						<Text style={styles.emptySubText}>
-							Tap Add Route to start.
-						</Text>
+						<Text style={styles.emptySubText}>Tap Add Route to start.</Text>
 					</View>
 				) : (
 					<FlatList
@@ -116,7 +113,9 @@ export default function RouteListModal({ open, onClose }: Props) {
 									<Text style={styles.itemName} numberOfLines={1}>
 										{item.name}
 									</Text>
-									<Text style={styles.itemDate}>{formatDate(item.createdAt)}</Text>
+									<Text style={styles.itemDate}>
+										{formatDate(item.createdAt)}
+									</Text>
 								</View>
 								{item.stats && (
 									<View style={styles.itemStats}>
