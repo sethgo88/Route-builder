@@ -4,7 +4,7 @@ import MapLibreGL, {
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import type { Feature, Geometry, Point } from 'geojson';
-import { Layers2, Locate, Trash2, Undo2 } from 'lucide-react-native';
+import { Layers2, List, Locate, Trash2, Undo2 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	ActivityIndicator,
@@ -21,6 +21,7 @@ import { type Coordinate, useRouteStore } from '../store/routeStore';
 import { computeSegmentMidpoints } from '../utils/routeMidpoint';
 import ControlsPanel from './ControlsPanel';
 import MidpointMarker from './MidpointMarker';
+import RouteListModal from './RouteListModal';
 import RoutePolyline from './RoutePolyline';
 import WaypointMarker from './WaypointMarker';
 
@@ -57,6 +58,7 @@ export default function RouteMap() {
 	);
 	const [activeStyleId, setActiveStyleId] = useState<MapStyleId>('outdoors');
 	const [layerMenuOpen, setLayerMenuOpen] = useState(false);
+	const [routeListOpen, setRouteListOpen] = useState(false);
 
 	const isCreating = editingMode === 'creating';
 
@@ -251,6 +253,12 @@ export default function RouteMap() {
 				<TouchableOpacity style={styles.layerButton} onPress={handleLocateMe}>
 					<Locate size={20} color={userLocation ? '#374151' : '#9ca3af'} />
 				</TouchableOpacity>
+				<TouchableOpacity
+					style={styles.layerButton}
+					onPress={() => setRouteListOpen(true)}
+				>
+					<List size={20} color="#374151" />
+				</TouchableOpacity>
 				{isCreating && (
 					<>
 						<TouchableOpacity
@@ -272,6 +280,11 @@ export default function RouteMap() {
 			</View>
 
 			<ControlsPanel mapViewRef={mapViewRef} />
+
+		<RouteListModal
+			open={routeListOpen}
+			onClose={() => setRouteListOpen(false)}
+		/>
 		</View>
 	);
 }
