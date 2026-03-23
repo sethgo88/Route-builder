@@ -1,9 +1,16 @@
 import MapLibreGL, {
 	type CameraRef,
 	type MapViewRef,
+	type OnPressEvent,
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
-import type { Feature, Geometry, Point } from 'geojson';
+import type {
+	Feature,
+	FeatureCollection,
+	Geometry,
+	LineString,
+	Point,
+} from 'geojson';
 import { Layers2, Locate, Plus, Trash2, Undo2 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -16,7 +23,9 @@ import {
 } from 'react-native';
 import type { MapStyleId } from '../constants/map';
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MAP_STYLES } from '../constants/map';
+import { useRoutes } from '../hooks/useRoutes';
 import { useRouting } from '../hooks/useRouting';
+import type { SavedRoute } from '../services/db';
 import { type Coordinate, useRouteStore } from '../store/routeStore';
 import { computeSegmentMidpoints } from '../utils/routeMidpoint';
 import ControlsPanel from './ControlsPanel';
@@ -41,6 +50,7 @@ export default function RouteMap() {
 	const undoLastWaypoint = useRouteStore((s) => s.undoLastWaypoint);
 	const clearAll = useRouteStore((s) => s.clearAll);
 	const setEditingMode = useRouteStore((s) => s.setEditingMode);
+	const loadRouteForEditing = useRouteStore((s) => s.loadRouteForEditing);
 	const focusCoordinate = useRouteStore((s) => s.focusCoordinate);
 	const setFocusCoordinate = useRouteStore((s) => s.setFocusCoordinate);
 	const setDraggingIndices = useRouteStore((s) => s.setDraggingIndices);
@@ -48,6 +58,31 @@ export default function RouteMap() {
 	const setPendingDragSegments = useRouteStore((s) => s.setPendingDragSegments);
 	const setDragPreview = useRouteStore((s) => s.setDragPreview);
 	const clearDragPreview = useRouteStore((s) => s.clearDragPreview);
+
+	const { data: savedRoutes } = useRoutes();
+
+	const bgRoutesShape = useMemo(
+		(): FeatureCollection<LineString> => ({
+			type: 'FeatureCollection',
+			features: (savedRoutes ?? []).map((r) => ({
+				type: 'Feature',
+				id: String(r.id),
+				geometry: r.geometry.geometry,
+				properties: { routeId: r.id, color: r.color },
+			})),
+		}),
+		[savedRoutes],
+	);
+
+	const handleBgRoutePress = useCallback(
+		(e: OnPressEvent) => {
+			const routeId = e.features[0]?.properties?.routeId as number | undefined;
+			if (routeId == null) return;
+			const found = savedRoutes?.find((r) => r.id === routeId) ?? null;
+			setPreviewRoute(found);
+		},
+		[savedRoutes],
+	);
 
 	const mapViewRef = useRef<MapViewRef>(null);
 	const cameraRef = useRef<CameraRef>(null);
@@ -58,6 +93,7 @@ export default function RouteMap() {
 	);
 	const [activeStyleId, setActiveStyleId] = useState<MapStyleId>('outdoors');
 	const [layerMenuOpen, setLayerMenuOpen] = useState(false);
+	const [previewRoute, setPreviewRoute] = useState<SavedRoute | null>(null);
 
 	const isCreating = editingMode === 'creating';
 	const isEditing = editingMode === 'editing';
@@ -167,6 +203,7 @@ export default function RouteMap() {
 				style={styles.map}
 				mapStyle={activeStyle.style}
 				onLongPress={handleLongPress}
+				onPress={() => setPreviewRoute(null)}
 				logoEnabled={false}
 				attributionEnabled
 				attributionPosition={{ bottom: 8, right: 8 }}
@@ -179,6 +216,27 @@ export default function RouteMap() {
 				/>
 
 				<MapLibreGL.UserLocation visible onUpdate={handleUserLocationUpdate} />
+
+				{/* Background routes — single FeatureCollection, visible in view mode only */}
+				{editingMode === 'view' && (
+					<MapLibreGL.ShapeSource
+						id="background-routes"
+						shape={bgRoutesShape}
+						onPress={handleBgRoutePress}
+					>
+						<MapLibreGL.LineLayer
+							id="background-routes-line"
+							style={{
+								lineColor: ['get', 'color'],
+								lineWidth: 2,
+								lineOpacity: 1,
+								lineCap: 'round',
+								lineJoin: 'round',
+							}}
+							layerIndex={9}
+						/>
+					</MapLibreGL.ShapeSource>
+				)}
 
 				<RoutePolyline />
 
@@ -305,6 +363,43 @@ export default function RouteMap() {
 				)}
 			</View>
 
+			{previewRoute && (
+				<View style={styles.previewCard}>
+					<View style={styles.previewHeader}>
+						<View style={styles.previewTitleRow}>
+							<View
+								style={[
+									styles.previewColorDot,
+									{ backgroundColor: previewRoute.color },
+								]}
+							/>
+							<Text style={styles.previewName} numberOfLines={1}>
+								{previewRoute.name}
+							</Text>
+						</View>
+						<TouchableOpacity onPress={() => setPreviewRoute(null)}>
+							<Text style={styles.previewDismiss}>✕</Text>
+						</TouchableOpacity>
+					</View>
+					{previewRoute.stats && (
+						<Text style={styles.previewMeta}>
+							{previewRoute.stats.distanceKm.toFixed(2)} km{'  '}↑{' '}
+							{Math.round(previewRoute.stats.gainM)} m{'  '}↓{' '}
+							{Math.round(previewRoute.stats.lossM)} m
+						</Text>
+					)}
+					<TouchableOpacity
+						style={styles.previewViewBtn}
+						onPress={() => {
+							loadRouteForEditing(previewRoute.id);
+							setPreviewRoute(null);
+						}}
+					>
+						<Text style={styles.previewViewBtnText}>View</Text>
+					</TouchableOpacity>
+				</View>
+			)}
+
 			<ControlsPanel mapViewRef={mapViewRef} />
 		</View>
 	);
@@ -366,5 +461,66 @@ const styles = StyleSheet.create({
 	layerMenuItemTextActive: {
 		color: '#2563eb',
 		fontWeight: '600',
+	},
+	previewCard: {
+		position: 'absolute',
+		bottom: 150,
+		left: 16,
+		right: 16,
+		backgroundColor: '#fff',
+		borderRadius: 12,
+		padding: 14,
+		gap: 8,
+		shadowColor: '#000',
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.15,
+		shadowRadius: 8,
+		elevation: 6,
+	},
+	previewHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+	},
+	previewTitleRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+		flex: 1,
+		marginRight: 8,
+	},
+	previewColorDot: {
+		width: 12,
+		height: 12,
+		borderRadius: 6,
+		borderWidth: 1,
+		borderColor: 'rgba(0,0,0,0.15)',
+		flexShrink: 0,
+	},
+	previewName: {
+		fontSize: 15,
+		fontWeight: '700',
+		color: '#111827',
+		flex: 1,
+	},
+	previewDismiss: {
+		fontSize: 16,
+		color: '#9ca3af',
+		paddingHorizontal: 4,
+	},
+	previewMeta: {
+		fontSize: 13,
+		color: '#6b7280',
+	},
+	previewViewBtn: {
+		backgroundColor: '#2563eb',
+		borderRadius: 8,
+		paddingVertical: 9,
+		alignItems: 'center',
+	},
+	previewViewBtnText: {
+		color: '#fff',
+		fontSize: 14,
+		fontWeight: '700',
 	},
 });

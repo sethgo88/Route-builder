@@ -85,12 +85,22 @@ export function saveRoute(
 	return result.lastInsertRowId;
 }
 
-export function updateRoute(id: number, name: string, color: string): void {
+export function updateRoute(
+	id: number,
+	name: string,
+	color: string,
+	waypoints: Waypoint[],
+	geometry: Feature<LineString>,
+	stats: RouteStats | null,
+): void {
 	const db = getDb();
 	db.runSync(
-		'UPDATE routes SET name = ?, color = ?, updated_at = ? WHERE id = ?',
+		'UPDATE routes SET name = ?, color = ?, waypoints = ?, geometry = ?, stats = ?, updated_at = ? WHERE id = ?',
 		name,
 		color,
+		JSON.stringify(waypoints),
+		JSON.stringify(geometry),
+		stats ? JSON.stringify(stats) : null,
 		new Date().toISOString(),
 		id,
 	);

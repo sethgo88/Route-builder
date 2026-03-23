@@ -234,12 +234,15 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 
 	// ── Edit mode: save ─────────────────────────────────────────────────────────
 	const handleEditSave = useCallback(() => {
-		if (!activeRouteId) return;
+		if (!activeRouteId || !route) return;
 		try {
 			updateRoute(
 				activeRouteId,
 				editingRouteName.trim() || 'Unnamed Route',
 				routeColor,
+				waypoints,
+				route,
+				routeStats,
 			);
 		} catch (err: unknown) {
 			Alert.alert(
@@ -251,7 +254,16 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 		pushRoute(activeRouteId).catch(() => {});
 		clearAll();
 		setEditingMode('view');
-	}, [activeRouteId, editingRouteName, routeColor, clearAll, setEditingMode]);
+	}, [
+		activeRouteId,
+		editingRouteName,
+		routeColor,
+		waypoints,
+		route,
+		routeStats,
+		clearAll,
+		setEditingMode,
+	]);
 
 	// ── Edit mode: delete ───────────────────────────────────────────────────────
 	const handleEditDelete = useCallback(() => {
@@ -283,12 +295,15 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 	}, [clearAll, setEditingMode]);
 
 	const handleLeaveGuardSaveAndContinue = useCallback(() => {
-		if (activeRouteId) {
+		if (activeRouteId && route) {
 			try {
 				updateRoute(
 					activeRouteId,
 					editingRouteName.trim() || 'Unnamed Route',
 					routeColor,
+					waypoints,
+					route,
+					routeStats,
 				);
 				pushRoute(activeRouteId).catch(() => {});
 			} catch {
@@ -298,7 +313,16 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 		setLeaveGuardVisible(false);
 		clearAll();
 		setEditingMode('view');
-	}, [activeRouteId, editingRouteName, routeColor, clearAll, setEditingMode]);
+	}, [
+		activeRouteId,
+		editingRouteName,
+		routeColor,
+		waypoints,
+		route,
+		routeStats,
+		clearAll,
+		setEditingMode,
+	]);
 
 	const hasRoute = route !== null;
 	const hasWaypoints = waypoints.length > 0;
