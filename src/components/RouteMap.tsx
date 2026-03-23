@@ -281,10 +281,10 @@ export default function RouteMap() {
 
 			<ControlsPanel mapViewRef={mapViewRef} />
 
-		<RouteListModal
-			open={routeListOpen}
-			onClose={() => setRouteListOpen(false)}
-		/>
+			<RouteListModal
+				open={routeListOpen}
+				onClose={() => setRouteListOpen(false)}
+			/>
 		</View>
 	);
 }
