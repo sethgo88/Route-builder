@@ -27,7 +27,10 @@ import {
 } from '../services/db';
 import { exportGpx } from '../services/gpxExport';
 import { parseGpx } from '../services/gpxParser';
+import { deleteRouteInCloud } from '../services/syncService';
+import { useAuthStore } from '../store/authStore';
 import { useRouteStore } from '../store/routeStore';
+import AccountModal from './AccountModal';
 import AddRouteButton from './AddRouteButton';
 import ElevationProfile from './ElevationProfile';
 import RouteActionBar from './RouteActionBar';
@@ -51,10 +54,13 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 
 	const isCreating = editingMode === 'creating';
 
+	const authUser = useAuthStore((s) => s.user);
+
 	const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
 	const [offlineProgress, setOfflineProgress] = useState<number | null>(null);
 	const [isExporting, setIsExporting] = useState(false);
 	const [isImporting, setIsImporting] = useState(false);
+	const [showAccount, setShowAccount] = useState(false);
 
 	// Initialise DB and load saved routes on mount
 	useEffect(() => {
@@ -186,8 +192,12 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 				text: 'Delete',
 				style: 'destructive',
 				onPress: () => {
-					deleteRoute(id);
+					const remoteId = deleteRoute(id);
 					setSavedRoutes(listRoutes());
+					if (remoteId) {
+						// fire-and-forget cloud soft-delete
+						deleteRouteInCloud(remoteId).catch(() => {});
+					}
 				},
 			},
 		]);
@@ -308,8 +318,24 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 							<Text style={styles.downloadText}>⬇ Download Visible Area</Text>
 						)}
 					</TouchableOpacity>
+
+					{/* Cloud account */}
+					<TouchableOpacity
+						style={styles.accountButton}
+						onPress={() => setShowAccount(true)}
+					>
+						<Text style={styles.accountButtonText}>
+							{authUser ? `☁ ${authUser.email}` : '☁ Sign in to back up routes'}
+						</Text>
+					</TouchableOpacity>
 				</View>
 			</BottomSheetScrollView>
+
+			<AccountModal
+				visible={showAccount}
+				onClose={() => setShowAccount(false)}
+				onSyncComplete={refreshRoutes}
+			/>
 		</BottomSheet>
 	);
 }
@@ -486,5 +512,16 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		gap: 8,
 		alignItems: 'center',
+	},
+	accountButton: {
+		paddingVertical: 10,
+		borderRadius: 8,
+		backgroundColor: '#f3f4f6',
+		alignItems: 'center',
+	},
+	accountButtonText: {
+		fontSize: 13,
+		fontWeight: '500',
+		color: '#374151',
 	},
 });

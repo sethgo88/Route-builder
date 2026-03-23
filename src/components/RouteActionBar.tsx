@@ -2,6 +2,7 @@ import { Check, X } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { saveRoute } from '../services/db';
+import { pushRoute } from '../services/syncService';
 import { useRouteStore } from '../store/routeStore';
 import NameRouteModal from './NameRouteModal';
 
@@ -28,8 +29,9 @@ export default function RouteActionBar({ onRouteSaved }: Props) {
 	const handleNameConfirm = useCallback(
 		(name: string) => {
 			if (!route) return;
+			let localId: number;
 			try {
-				saveRoute(name, waypoints, route, routeStats);
+				localId = saveRoute(name, waypoints, route, routeStats);
 			} catch (err: unknown) {
 				Alert.alert(
 					'Save failed',
@@ -37,6 +39,8 @@ export default function RouteActionBar({ onRouteSaved }: Props) {
 				);
 				return;
 			}
+			// fire-and-forget background sync
+			pushRoute(localId).catch(() => {});
 			setNamingVisible(false);
 			clearAll();
 			setEditingMode('view');
