@@ -33,6 +33,7 @@ export default function RouteMap() {
 		Location.requestForegroundPermissionsAsync();
 	}, []);
 
+	const editingMode = useRouteStore((s) => s.editingMode);
 	const waypoints = useRouteStore((s) => s.waypoints);
 	const route = useRouteStore((s) => s.route);
 	const isLoading = useRouteStore((s) => s.isLoading);
@@ -56,6 +57,8 @@ export default function RouteMap() {
 	);
 	const [activeStyleId, setActiveStyleId] = useState<MapStyleId>('outdoors');
 	const [layerMenuOpen, setLayerMenuOpen] = useState(false);
+
+	const isCreating = editingMode === 'creating';
 
 	const activeStyle =
 		MAP_STYLES.find((s) => s.id === activeStyleId) ?? MAP_STYLES[0];
@@ -124,11 +127,12 @@ export default function RouteMap() {
 
 	const handleLongPress = useCallback(
 		(feature: Feature<Geometry>) => {
+			if (!isCreating) return;
 			const point = feature as Feature<Point>;
 			const [longitude, latitude] = point.geometry.coordinates;
 			addWaypoint({ longitude, latitude });
 		},
-		[addWaypoint],
+		[addWaypoint, isCreating],
 	);
 
 	return (
@@ -153,52 +157,54 @@ export default function RouteMap() {
 
 				<RoutePolyline />
 
-				{waypoints.map((wp, index) => (
-					<WaypointMarker
-						key={wp.id}
-						waypoint={wp}
-						index={index}
-						total={waypoints.length}
-						onDragMove={(coord) => {
-							const neighbors: Coordinate[] = [];
-							if (index > 0) neighbors.push(waypoints[index - 1].coordinate);
-							if (index < waypoints.length - 1)
-								neighbors.push(waypoints[index + 1].coordinate);
-							setDragPreview(coord, neighbors);
-							setDraggingIndices([index]);
-						}}
-						onDragFinish={() => {
-							clearDragPreview();
-							clearDraggingIndices();
-							const pending: number[] = [];
-							if (index > 0) pending.push(index - 1);
-							if (index < waypoints.length - 1) pending.push(index);
-							setPendingDragSegments(pending);
-						}}
-					/>
-				))}
-
-				{segmentMidpoints.map((midCoord, index) => {
-					const wp = waypoints[index];
-					const next = waypoints[index + 1];
-					return (
-						<MidpointMarker
-							key={`mid-${wp.id}-${next.id}`}
-							id={`mid-${wp.id}-${next.id}`}
-							coordinate={midCoord}
-							afterIndex={index}
+				{isCreating &&
+					waypoints.map((wp, index) => (
+						<WaypointMarker
+							key={wp.id}
+							waypoint={wp}
+							index={index}
+							total={waypoints.length}
 							onDragMove={(coord) => {
-								setDragPreview(coord, [wp.coordinate, next.coordinate]);
-								setDraggingIndices([index, index + 1]);
+								const neighbors: Coordinate[] = [];
+								if (index > 0) neighbors.push(waypoints[index - 1].coordinate);
+								if (index < waypoints.length - 1)
+									neighbors.push(waypoints[index + 1].coordinate);
+								setDragPreview(coord, neighbors);
+								setDraggingIndices([index]);
 							}}
 							onDragFinish={() => {
 								clearDragPreview();
 								clearDraggingIndices();
-								setPendingDragSegments([index]);
+								const pending: number[] = [];
+								if (index > 0) pending.push(index - 1);
+								if (index < waypoints.length - 1) pending.push(index);
+								setPendingDragSegments(pending);
 							}}
 						/>
-					);
-				})}
+					))}
+
+				{isCreating &&
+					segmentMidpoints.map((midCoord, index) => {
+						const wp = waypoints[index];
+						const next = waypoints[index + 1];
+						return (
+							<MidpointMarker
+								key={`mid-${wp.id}-${next.id}`}
+								id={`mid-${wp.id}-${next.id}`}
+								coordinate={midCoord}
+								afterIndex={index}
+								onDragMove={(coord) => {
+									setDragPreview(coord, [wp.coordinate, next.coordinate]);
+									setDraggingIndices([index, index + 1]);
+								}}
+								onDragFinish={() => {
+									clearDragPreview();
+									clearDraggingIndices();
+									setPendingDragSegments([index]);
+								}}
+							/>
+						);
+					})}
 			</MapLibreGL.MapView>
 
 			{isLoading && (
@@ -245,20 +251,24 @@ export default function RouteMap() {
 				<TouchableOpacity style={styles.layerButton} onPress={handleLocateMe}>
 					<Locate size={20} color={userLocation ? '#374151' : '#9ca3af'} />
 				</TouchableOpacity>
-				<TouchableOpacity
-					style={styles.layerButton}
-					onPress={undoLastWaypoint}
-					disabled={!hasWaypoints}
-				>
-					<Undo2 size={20} color={hasWaypoints ? '#374151' : '#9ca3af'} />
-				</TouchableOpacity>
-				<TouchableOpacity
-					style={styles.layerButton}
-					onPress={handleClearAll}
-					disabled={!hasWaypoints}
-				>
-					<Trash2 size={20} color={hasWaypoints ? '#dc2626' : '#9ca3af'} />
-				</TouchableOpacity>
+				{isCreating && (
+					<>
+						<TouchableOpacity
+							style={styles.layerButton}
+							onPress={undoLastWaypoint}
+							disabled={!hasWaypoints}
+						>
+							<Undo2 size={20} color={hasWaypoints ? '#374151' : '#9ca3af'} />
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={styles.layerButton}
+							onPress={handleClearAll}
+							disabled={!hasWaypoints}
+						>
+							<Trash2 size={20} color={hasWaypoints ? '#dc2626' : '#9ca3af'} />
+						</TouchableOpacity>
+					</>
+				)}
 			</View>
 
 			<ControlsPanel mapViewRef={mapViewRef} />

@@ -3,7 +3,7 @@ import MapLibreGL, { type MapViewRef } from '@maplibre/maplibre-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import type React from 'react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	ActivityIndicator,
 	Alert,
@@ -19,10 +19,18 @@ import {
 	OFFLINE_MIN_ZOOM,
 	OFFLINE_TILE_URL,
 } from '../constants/map';
+import {
+	deleteRoute,
+	initDb,
+	listRoutes,
+	type SavedRoute,
+} from '../services/db';
 import { exportGpx } from '../services/gpxExport';
 import { parseGpx } from '../services/gpxParser';
 import { useRouteStore } from '../store/routeStore';
+import AddRouteButton from './AddRouteButton';
 import ElevationProfile from './ElevationProfile';
+import RouteActionBar from './RouteActionBar';
 
 interface Props {
 	mapViewRef: React.RefObject<MapViewRef>;
@@ -33,6 +41,7 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 	const bottomSheetRef = useRef<BottomSheet>(null);
 	const { width } = useWindowDimensions();
 
+	const editingMode = useRouteStore((s) => s.editingMode);
 	const waypoints = useRouteStore((s) => s.waypoints);
 	const route = useRouteStore((s) => s.route);
 	const routeStats = useRouteStore((s) => s.routeStats);
@@ -40,9 +49,22 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 	const setIsSnapping = useRouteStore((s) => s.setIsSnapping);
 	const loadWaypoints = useRouteStore((s) => s.loadWaypoints);
 
+	const isCreating = editingMode === 'creating';
+
+	const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
 	const [offlineProgress, setOfflineProgress] = useState<number | null>(null);
 	const [isExporting, setIsExporting] = useState(false);
 	const [isImporting, setIsImporting] = useState(false);
+
+	// Initialise DB and load saved routes on mount
+	useEffect(() => {
+		initDb();
+		setSavedRoutes(listRoutes());
+	}, []);
+
+	const refreshRoutes = useCallback(() => {
+		setSavedRoutes(listRoutes());
+	}, []);
 
 	// ── GPX Export ─────────────────────────────────────────────────────────────
 	const handleExport = useCallback(async () => {
@@ -157,6 +179,20 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 		}
 	}, [mapViewRef]);
 
+	const handleDeleteRoute = useCallback((id: number) => {
+		Alert.alert('Delete route', 'This route will be permanently deleted.', [
+			{ text: 'Cancel', style: 'cancel' },
+			{
+				text: 'Delete',
+				style: 'destructive',
+				onPress: () => {
+					deleteRoute(id);
+					setSavedRoutes(listRoutes());
+				},
+			},
+		]);
+	}, []);
+
 	const hasRoute = route !== null;
 	const hasWaypoints = waypoints.length > 0;
 
@@ -168,25 +204,66 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 			backgroundStyle={styles.sheet}
 			handleIndicatorStyle={styles.handle}
 		>
+			{/* Creating mode: action bar replaces the handle area */}
+			{isCreating && <RouteActionBar onRouteSaved={refreshRoutes} />}
+
 			<BottomSheetScrollView contentContainerStyle={styles.content}>
-				{/* Hint when no waypoints */}
-				{!hasWaypoints && (
-					<Text style={styles.hint}>Long-press the map to add waypoints</Text>
+				{/* View mode ── saved routes list + Add Route button */}
+				{!isCreating && (
+					<>
+						{savedRoutes.length > 0 && (
+							<View style={styles.savedSection}>
+								<Text style={styles.sectionTitle}>Saved Routes</Text>
+								{savedRoutes.map((r) => (
+									<View key={r.id} style={styles.savedRow}>
+										<View style={styles.savedInfo}>
+											<Text style={styles.savedName}>{r.name}</Text>
+											{r.stats && (
+												<Text style={styles.savedMeta}>
+													{r.stats.distanceKm.toFixed(2)} km ·{' '}
+													{r.stats.gainM.toFixed(0)} m gain
+												</Text>
+											)}
+										</View>
+										<TouchableOpacity
+											style={styles.deleteBtn}
+											onPress={() => handleDeleteRoute(r.id)}
+										>
+											<Text style={styles.deleteBtnText}>Delete</Text>
+										</TouchableOpacity>
+									</View>
+								))}
+							</View>
+						)}
+
+						{savedRoutes.length === 0 && (
+							<Text style={styles.hint}>No saved routes yet</Text>
+						)}
+
+						<AddRouteButton />
+					</>
 				)}
 
-				{/* Elevation profile */}
-				{hasRoute && <ElevationProfile width={width} />}
-
-				{/* Route stats summary (compact, shown even when sheet is collapsed) */}
-				{routeStats && !hasRoute && (
-					<View style={styles.statsRow}>
-						<Text style={styles.statLabel}>
-							{routeStats.distanceKm.toFixed(2)} km
-						</Text>
-					</View>
+				{/* Creating mode ── elevation profile + stats */}
+				{isCreating && (
+					<>
+						{!hasWaypoints && (
+							<Text style={styles.hint}>
+								Long-press the map to add waypoints
+							</Text>
+						)}
+						{hasRoute && <ElevationProfile width={width} />}
+						{routeStats && !hasRoute && (
+							<View style={styles.statsRow}>
+								<Text style={styles.statLabel}>
+									{routeStats.distanceKm.toFixed(2)} km
+								</Text>
+							</View>
+						)}
+					</>
 				)}
 
-				{/* Controls */}
+				{/* Controls — visible in both modes */}
 				<View style={styles.controls}>
 					{/* Snap to trails toggle */}
 					<View style={styles.row}>
@@ -295,6 +372,50 @@ const styles = StyleSheet.create({
 		color: '#9ca3af',
 		fontSize: 13,
 		paddingVertical: 12,
+	},
+	savedSection: {
+		paddingHorizontal: 16,
+		paddingTop: 8,
+		gap: 6,
+	},
+	sectionTitle: {
+		fontSize: 13,
+		fontWeight: '700',
+		color: '#6b7280',
+		textTransform: 'uppercase',
+		letterSpacing: 0.5,
+		marginBottom: 2,
+	},
+	savedRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		paddingVertical: 8,
+		borderBottomWidth: StyleSheet.hairlineWidth,
+		borderBottomColor: '#e5e7eb',
+	},
+	savedInfo: {
+		flex: 1,
+	},
+	savedName: {
+		fontSize: 14,
+		fontWeight: '600',
+		color: '#111827',
+	},
+	savedMeta: {
+		fontSize: 12,
+		color: '#6b7280',
+		marginTop: 1,
+	},
+	deleteBtn: {
+		paddingHorizontal: 10,
+		paddingVertical: 5,
+		borderRadius: 6,
+		backgroundColor: '#fee2e2',
+	},
+	deleteBtnText: {
+		fontSize: 12,
+		fontWeight: '600',
+		color: '#dc2626',
 	},
 	statsRow: {
 		paddingHorizontal: 16,

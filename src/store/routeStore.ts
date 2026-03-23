@@ -17,7 +17,11 @@ export interface RouteStats {
 	lossM: number;
 }
 
+/** 'view' = read-only, no editing; 'creating' = user is building a new route */
+export type EditingMode = 'view' | 'creating';
+
 interface RouteState {
+	editingMode: EditingMode;
 	waypoints: Waypoint[];
 	route: Feature<LineString> | null;
 	/** [distanceKm, elevationM] pairs for the elevation profile chart */
@@ -40,6 +44,7 @@ interface RouteState {
 }
 
 interface RouteActions {
+	setEditingMode: (mode: EditingMode) => void;
 	addWaypoint: (coord: Coordinate) => void;
 	insertWaypoint: (afterIndex: number, coord: Coordinate) => void;
 	moveWaypoint: (id: string, coord: Coordinate) => void;
@@ -51,6 +56,8 @@ interface RouteActions {
 	setIsSnapping: (value: boolean) => void;
 	setIsLoading: (value: boolean) => void;
 	setFocusCoordinate: (coord: [number, number] | null) => void;
+	/** Clears only the active editing state (waypoints, route, elevation, stats).
+	 *  Does NOT affect persisted saved routes in the database. */
 	clearAll: () => void;
 	/** Load an array of coordinates as waypoints (e.g. from GPX import) */
 	loadWaypoints: (coords: Coordinate[]) => void;
@@ -70,6 +77,7 @@ function makeId(): string {
 }
 
 export const useRouteStore = create<RouteState & RouteActions>((set) => ({
+	editingMode: 'view',
 	waypoints: [],
 	route: null,
 	elevationData: [],
@@ -81,6 +89,8 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 	pendingDragSegments: [],
 	dragPreviewCoord: null,
 	dragPreviewNeighbors: [],
+
+	setEditingMode: (editingMode) => set({ editingMode }),
 
 	addWaypoint: (coord) =>
 		set((state) => ({
