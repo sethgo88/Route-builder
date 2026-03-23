@@ -89,6 +89,28 @@ export default function RouteMap() {
 		setFocusCoordinate(null);
 	}, [focusCoordinate, setFocusCoordinate]);
 
+	// Fit camera to route bounding box when a saved route is loaded (null → non-null, editing mode only)
+	const prevRouteRef = useRef<typeof route>(null);
+	useEffect(() => {
+		const prev = prevRouteRef.current;
+		prevRouteRef.current = route;
+		if (!route || prev !== null || editingMode !== 'editing') return;
+
+		const coords = route.geometry.coordinates;
+		if (coords.length === 0) return;
+		let minLon = coords[0][0];
+		let maxLon = coords[0][0];
+		let minLat = coords[0][1];
+		let maxLat = coords[0][1];
+		for (const [lon, lat] of coords) {
+			if (lon < minLon) minLon = lon;
+			if (lon > maxLon) maxLon = lon;
+			if (lat < minLat) minLat = lat;
+			if (lat > maxLat) maxLat = lat;
+		}
+		cameraRef.current?.fitBounds([maxLon, maxLat], [minLon, minLat], 40, 800);
+	}, [route, editingMode]);
+
 	const handleUserLocationUpdate = useCallback(
 		(location: MapLibreGL.Location) => {
 			const coord: [number, number] = [
