@@ -1,6 +1,6 @@
 import { Check, X } from 'lucide-react-native';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { saveRoute } from '../services/db';
 import { pushRoute } from '../services/syncService';
 import { useRouteStore } from '../store/routeStore';
@@ -128,20 +128,9 @@ export default function RouteActionBar({ onRouteSaved }: Props) {
 					activeOpacity={0.8}
 				>
 					<X size={18} color="#374151" />
-					<Text style={styles.cancelLabel}>Cancel</Text>
 				</TouchableOpacity>
 
-				<View style={styles.hint}>
-					<Text style={styles.hintText}>
-						{waypoints.length === 0
-							? 'Long-press map to add waypoints'
-							: waypoints.length === 1
-								? 'Add one more waypoint'
-								: route
-									? 'Route ready to save'
-									: 'Computing route…'}
-					</Text>
-				</View>
+				<View style={styles.spacer} />
 
 				<TouchableOpacity
 					style={[styles.saveButton, !canSave && styles.saveDisabled]}
@@ -150,11 +139,6 @@ export default function RouteActionBar({ onRouteSaved }: Props) {
 					activeOpacity={0.8}
 				>
 					<Check size={18} color={canSave ? '#fff' : '#9ca3af'} />
-					<Text
-						style={[styles.saveLabel, !canSave && styles.saveLabelDisabled]}
-					>
-						Save
-					</Text>
 				</TouchableOpacity>
 			</View>
 
@@ -187,46 +171,19 @@ const styles = StyleSheet.create({
 		gap: 8,
 	},
 	cancelButton: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 4,
-		paddingVertical: 8,
-		paddingHorizontal: 10,
+		padding: 8,
 		borderRadius: 8,
 		backgroundColor: '#f3f4f6',
 	},
-	cancelLabel: {
-		fontSize: 14,
-		fontWeight: '600',
-		color: '#374151',
-	},
-	hint: {
+	spacer: {
 		flex: 1,
-		alignItems: 'center',
-	},
-	hintText: {
-		fontSize: 12,
-		color: '#6b7280',
-		textAlign: 'center',
 	},
 	saveButton: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 4,
-		paddingVertical: 8,
-		paddingHorizontal: 10,
+		padding: 8,
 		borderRadius: 8,
 		backgroundColor: '#2563eb',
 	},
 	saveDisabled: {
 		backgroundColor: '#f3f4f6',
-	},
-	saveLabel: {
-		fontSize: 14,
-		fontWeight: '700',
-		color: '#fff',
-	},
-	saveLabelDisabled: {
-		color: '#9ca3af',
 	},
 });

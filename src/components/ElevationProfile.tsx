@@ -1,12 +1,9 @@
-import { useCallback, useMemo } from 'react';
-import {
-	type GestureResponderEvent,
-	StyleSheet,
-	Text,
-	View,
-} from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import Svg, {
+	Circle,
 	Defs,
+	Line,
 	LinearGradient,
 	Path,
 	Polyline,
@@ -64,13 +61,11 @@ function buildChart(data: [number, number][], width: number): ChartPath | null {
 	const baseY = PAD.top + innerH;
 	const areaPath = `${linePath} L ${lastX},${baseY} L ${firstX},${baseY} Z`;
 
-	// X ticks: 3 evenly spaced
 	const xTicks = [0, 0.5, 1].map((t) => ({
 		x: toX(maxDist * t),
 		label: formatDist(maxDist * t),
 	}));
 
-	// Y ticks: min and max
 	const yTicks = [
 		{ y: toY(maxEle), label: formatEle(maxEle) },
 		{ y: toY(minEle), label: formatEle(minEle) },
@@ -80,7 +75,6 @@ function buildChart(data: [number, number][], width: number): ChartPath | null {
 }
 
 interface Props {
-	/** Pixel width available for the chart — usually screen width */
 	width: number;
 }
 
@@ -89,23 +83,23 @@ export default function ElevationProfile({ width }: Props) {
 	const routeStats = useRouteStore((s) => s.routeStats);
 	const route = useRouteStore((s) => s.route);
 	const setFocusCoordinate = useRouteStore((s) => s.setFocusCoordinate);
+	const setElevationMarkerCoord = useRouteStore((s) => s.setElevationMarkerCoord);
+
+	const [tappedIdx, setTappedIdx] = useState<number | null>(null);
 
 	const chart = useMemo(
 		() => buildChart(elevationData, width),
 		[elevationData, width],
 	);
 
-	const handlePress = useCallback(
-		(evt: GestureResponderEvent) => {
-			if (!chart || !route || elevationData.length < 2) return;
-			const touchX = evt.nativeEvent.locationX;
+	const findIdx = useCallback(
+		(touchX: number, touchY: number): number | null => {
+			if (!chart || elevationData.length < 2) return null;
+			if (touchX < PAD.left || touchX > width - PAD.right) return null;
+			if (touchY < 0 || touchY > CHART_HEIGHT) return null;
 			const innerW = width - PAD.left - PAD.right;
 			const maxDist = elevationData[elevationData.length - 1][0];
-
-			// Map touch X to distance
 			const touchDist = ((touchX - PAD.left) / innerW) * maxDist;
-
-			// Find the closest data point
 			let closestIdx = 0;
 			let closestDiff = Infinity;
 			for (let i = 0; i < elevationData.length; i++) {
@@ -115,20 +109,33 @@ export default function ElevationProfile({ width }: Props) {
 					closestIdx = i;
 				}
 			}
-
-			const coord = route.geometry.coordinates[closestIdx];
-			if (coord) {
-				setFocusCoordinate([coord[0], coord[1]]);
-			}
+			return closestIdx;
 		},
-		[chart, route, elevationData, width, setFocusCoordinate],
+		[chart, elevationData, width],
+	);
+
+	const updatePoint = useCallback(
+		(idx: number, flyCamera: boolean) => {
+			if (!route) return;
+			const coord = route.geometry.coordinates[idx];
+			if (coord) {
+				if (flyCamera) setFocusCoordinate([coord[0], coord[1]]);
+				setElevationMarkerCoord([coord[0], coord[1]]);
+			}
+			setTappedIdx(idx);
+		},
+		[route, setFocusCoordinate, setElevationMarkerCoord],
 	);
 
 	if (!chart || !routeStats) return null;
 
+	const tappedPt = tappedIdx !== null ? chart.pointCoords[tappedIdx] : null;
+	const tappedEle = tappedIdx !== null ? elevationData[tappedIdx][1] : null;
+	const tappedDist = tappedIdx !== null ? elevationData[tappedIdx][0] : null;
+
 	return (
 		<View style={styles.container}>
-			{/* Stats row */}
+			{/* Stats row — total route stats + scrub position on the right */}
 			<View style={styles.statsRow}>
 				<Text style={styles.statText}>{formatDist(routeStats.distanceKm)}</Text>
 				<Text style={[styles.statText, styles.gain]}>
@@ -137,71 +144,103 @@ export default function ElevationProfile({ width }: Props) {
 				<Text style={[styles.statText, styles.loss]}>
 					↓ {formatEle(routeStats.lossM)}
 				</Text>
+				{tappedEle !== null && tappedDist !== null && (
+					<Text style={[styles.statText, styles.scrubStat]}>
+						↑ {formatEle(tappedEle)} · {formatDist(tappedDist)}
+					</Text>
+				)}
 			</View>
 
-			{/* SVG chart — tap to fly camera to that point */}
-			<Svg width={width} height={CHART_HEIGHT} onPress={handlePress}>
-				<Defs>
-					<LinearGradient id="eleGrad" x1="0" y1="0" x2="0" y2="1">
-						<Stop offset="0" stopColor="#3b82f6" stopOpacity="0.4" />
-						<Stop offset="1" stopColor="#3b82f6" stopOpacity="0.05" />
-					</LinearGradient>
-				</Defs>
+			{/* SVG chart — touch and scrub; dot persists on release */}
+			<View
+				onStartShouldSetResponder={() => true}
+				onResponderGrant={(e) => {
+					const idx = findIdx(e.nativeEvent.locationX, e.nativeEvent.locationY);
+					if (idx !== null) updatePoint(idx, true);
+				}}
+				onResponderMove={(e) => {
+					const idx = findIdx(e.nativeEvent.locationX, e.nativeEvent.locationY);
+					if (idx !== null) updatePoint(idx, false);
+				}}
+			>
+				<Svg width={width} height={CHART_HEIGHT}>
+					<Defs>
+						<LinearGradient id="eleGrad" x1="0" y1="0" x2="0" y2="1">
+							<Stop offset="0" stopColor="#3b82f6" stopOpacity="0.4" />
+							<Stop offset="1" stopColor="#3b82f6" stopOpacity="0.05" />
+						</LinearGradient>
+					</Defs>
 
-				{/* Grid background */}
-				<Rect
-					x={PAD.left}
-					y={PAD.top}
-					width={width - PAD.left - PAD.right}
-					height={CHART_HEIGHT - PAD.top - PAD.bottom}
-					fill="none"
-					stroke="#e5e7eb"
-					strokeWidth={1}
-				/>
+					<Rect
+						x={PAD.left}
+						y={PAD.top}
+						width={width - PAD.left - PAD.right}
+						height={CHART_HEIGHT - PAD.top - PAD.bottom}
+						fill="none"
+						stroke="#e5e7eb"
+						strokeWidth={1}
+					/>
 
-				{/* Filled area */}
-				<Path d={chart.areaPath} fill="url(#eleGrad)" />
+					<Path d={chart.areaPath} fill="url(#eleGrad)" />
 
-				{/* Line */}
-				<Polyline
-					points={chart.pointCoords.map((p) => `${p.x},${p.y}`).join(' ')}
-					fill="none"
-					stroke="#3b82f6"
-					strokeWidth={2}
-					strokeLinejoin="round"
-					strokeLinecap="round"
-				/>
+					<Polyline
+						points={chart.pointCoords.map((p) => `${p.x},${p.y}`).join(' ')}
+						fill="none"
+						stroke="#3b82f6"
+						strokeWidth={2}
+						strokeLinejoin="round"
+						strokeLinecap="round"
+					/>
 
-				{/* X-axis ticks */}
-				{chart.xTicks.map((t) => (
-					<SvgText
-						key={`xt-${t.label}`}
-						x={t.x}
-						y={CHART_HEIGHT - 4}
-						fontSize={9}
-						fill="#6b7280"
-						textAnchor="middle"
-					>
-						{t.label}
-					</SvgText>
-				))}
+					{chart.xTicks.map((t) => (
+						<SvgText
+							key={`xt-${t.label}`}
+							x={t.x}
+							y={CHART_HEIGHT - 4}
+							fontSize={9}
+							fill="#6b7280"
+							textAnchor="middle"
+						>
+							{t.label}
+						</SvgText>
+					))}
 
-				{/* Y-axis ticks */}
-				{chart.yTicks.map((t) => (
-					<SvgText
-						key={`yt-${t.label}`}
-						x={PAD.left - 3}
-						y={t.y + 3}
-						fontSize={9}
-						fill="#6b7280"
-						textAnchor="end"
-					>
-						{t.label}
-					</SvgText>
-				))}
-			</Svg>
+					{chart.yTicks.map((t) => (
+						<SvgText
+							key={`yt-${t.label}`}
+							x={PAD.left - 3}
+							y={t.y + 3}
+							fontSize={9}
+							fill="#6b7280"
+							textAnchor="end"
+						>
+							{t.label}
+						</SvgText>
+					))}
 
-			<Text style={styles.hint}>Tap chart to fly to that location</Text>
+					{tappedPt !== null && (
+						<>
+							<Line
+								x1={tappedPt.x}
+								y1={PAD.top}
+								x2={tappedPt.x}
+								y2={CHART_HEIGHT - PAD.bottom}
+								stroke="#374151"
+								strokeWidth={1}
+								strokeDasharray="3,2"
+							/>
+							<Circle
+								cx={tappedPt.x}
+								cy={tappedPt.y}
+								r={4}
+								fill="#3b82f6"
+								stroke="#fff"
+								strokeWidth={1.5}
+							/>
+						</>
+					)}
+				</Svg>
+			</View>
 		</View>
 	);
 }
@@ -212,6 +251,7 @@ const styles = StyleSheet.create({
 	},
 	statsRow: {
 		flexDirection: 'row',
+		alignItems: 'center',
 		gap: 16,
 		paddingHorizontal: 16,
 		paddingBottom: 4,
@@ -223,11 +263,8 @@ const styles = StyleSheet.create({
 	},
 	gain: { color: '#16a34a' },
 	loss: { color: '#dc2626' },
-	hint: {
-		fontSize: 10,
-		color: '#9ca3af',
-		textAlign: 'center',
-		marginTop: 2,
-		marginBottom: 4,
+	scrubStat: {
+		marginLeft: 'auto',
+		color: '#6b7280',
 	},
 });

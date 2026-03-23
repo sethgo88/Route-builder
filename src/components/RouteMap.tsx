@@ -53,6 +53,7 @@ export default function RouteMap() {
 	const loadRouteForEditing = useRouteStore((s) => s.loadRouteForEditing);
 	const focusCoordinate = useRouteStore((s) => s.focusCoordinate);
 	const setFocusCoordinate = useRouteStore((s) => s.setFocusCoordinate);
+	const elevationMarkerCoord = useRouteStore((s) => s.elevationMarkerCoord);
 	const setDraggingIndices = useRouteStore((s) => s.setDraggingIndices);
 	const clearDraggingIndices = useRouteStore((s) => s.clearDraggingIndices);
 	const setPendingDragSegments = useRouteStore((s) => s.setPendingDragSegments);
@@ -239,6 +240,27 @@ export default function RouteMap() {
 				)}
 
 				<RoutePolyline />
+
+				{elevationMarkerCoord && (
+					<MapLibreGL.ShapeSource
+						id="elevationMarker"
+						shape={{
+							type: 'Feature',
+							geometry: { type: 'Point', coordinates: elevationMarkerCoord },
+							properties: {},
+						}}
+					>
+						<MapLibreGL.CircleLayer
+							id="elevationMarkerCircle"
+							style={{
+								circleRadius: 7,
+								circleColor: '#ffffff',
+								circleStrokeColor: '#3b82f6',
+								circleStrokeWidth: 2,
+							}}
+						/>
+					</MapLibreGL.ShapeSource>
+				)}
 
 				{isActive &&
 					waypoints.map((wp, index) => (
