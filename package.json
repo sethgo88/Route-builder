@@ -13,6 +13,7 @@
 	},
 	"dependencies": {
 		"@gorhom/bottom-sheet": "^4.6.4",
+		"@supabase/supabase-js": "^2.49.4",
 		"@maplibre/maplibre-react-native": "^10.0.0",
 		"@tanstack/react-query": "^5.95.0",
 		"expo": "~52.0.0",
@@ -24,6 +25,7 @@
 		"expo-keep-awake": "~14.0.3",
 		"expo-location": "~18.0.10",
 		"expo-sharing": "~13.0.0",
+		"expo-secure-store": "~14.0.0",
 		"expo-sqlite": "^55.0.11",
 		"expo-status-bar": "~2.0.1",
 		"fast-xml-parser": "^4.4.0",
