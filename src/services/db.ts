@@ -73,6 +73,27 @@ export function listRoutes(): SavedRoute[] {
 	}));
 }
 
+export function getRoute(id: number): SavedRoute | null {
+	const db = getDb();
+	const row = db.getFirstSync<{
+		id: number;
+		name: string;
+		waypoints: string;
+		geometry: string;
+		stats: string | null;
+		created_at: string;
+	}>('SELECT * FROM routes WHERE id = ?', id);
+	if (!row) return null;
+	return {
+		id: row.id,
+		name: row.name,
+		waypoints: JSON.parse(row.waypoints) as Waypoint[],
+		geometry: JSON.parse(row.geometry) as Feature<LineString>,
+		stats: row.stats ? (JSON.parse(row.stats) as RouteStats) : null,
+		createdAt: row.created_at,
+	};
+}
+
 export function deleteRoute(id: number): void {
 	const db = getDb();
 	db.runSync('DELETE FROM routes WHERE id = ?', id);
