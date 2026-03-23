@@ -26,6 +26,7 @@ import {
 } from '../constants/map';
 import {
 	deleteRoute,
+	getRoute,
 	initDb,
 	listRoutes,
 	type SavedRoute,
@@ -289,8 +290,22 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 
 	// ── Edit mode: back (leave guard) ───────────────────────────────────────────
 	const handleEditBack = useCallback(() => {
-		setLeaveGuardVisible(true);
-	}, []);
+		if (activeRouteId) {
+			const saved = getRoute(activeRouteId);
+			if (saved) {
+				const hasChanges =
+					editingRouteName !== saved.name ||
+					routeColor !== saved.color ||
+					JSON.stringify(waypoints) !== JSON.stringify(saved.waypoints);
+				if (hasChanges) {
+					setLeaveGuardVisible(true);
+					return;
+				}
+			}
+		}
+		clearAll();
+		setEditingMode('view');
+	}, [activeRouteId, editingRouteName, routeColor, waypoints, clearAll, setEditingMode]);
 
 	const handleLeaveGuardContinue = useCallback(() => {
 		setLeaveGuardVisible(false);
