@@ -4,9 +4,11 @@ import MapLibreGL, {
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import type { Feature, Geometry, Point } from 'geojson';
+import { Layers2, Locate, Trash2, Undo2 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	ActivityIndicator,
+	Alert,
 	StyleSheet,
 	Text,
 	TouchableOpacity,
@@ -35,6 +37,8 @@ export default function RouteMap() {
 	const route = useRouteStore((s) => s.route);
 	const isLoading = useRouteStore((s) => s.isLoading);
 	const addWaypoint = useRouteStore((s) => s.addWaypoint);
+	const undoLastWaypoint = useRouteStore((s) => s.undoLastWaypoint);
+	const clearAll = useRouteStore((s) => s.clearAll);
 	const focusCoordinate = useRouteStore((s) => s.focusCoordinate);
 	const setFocusCoordinate = useRouteStore((s) => s.setFocusCoordinate);
 	const setDraggingIndices = useRouteStore((s) => s.setDraggingIndices);
@@ -108,6 +112,15 @@ export default function RouteMap() {
 			animationMode: 'flyTo',
 		});
 	}, [userLocation]);
+
+	const hasWaypoints = waypoints.length > 0;
+
+	const handleClearAll = useCallback(() => {
+		Alert.alert('Clear route', 'Remove all waypoints and the route?', [
+			{ text: 'Cancel', style: 'cancel' },
+			{ text: 'Clear', style: 'destructive', onPress: clearAll },
+		]);
+	}, [clearAll]);
 
 	const handleLongPress = useCallback(
 		(feature: Feature<Geometry>) => {
@@ -194,7 +207,7 @@ export default function RouteMap() {
 				</View>
 			)}
 
-			{/* Layer picker — top right */}
+			{/* Map controls — top right */}
 			<View style={styles.layerButtonContainer}>
 				{layerMenuOpen && (
 					<View style={styles.layerMenu}>
@@ -227,16 +240,24 @@ export default function RouteMap() {
 					style={styles.layerButton}
 					onPress={() => setLayerMenuOpen((v) => !v)}
 				>
-					<Text style={styles.layerButtonIcon}>⊞</Text>
+					<Layers2 size={20} color="#374151" />
+				</TouchableOpacity>
+				<TouchableOpacity style={styles.layerButton} onPress={handleLocateMe}>
+					<Locate size={20} color={userLocation ? '#374151' : '#9ca3af'} />
 				</TouchableOpacity>
 				<TouchableOpacity
-					style={[
-						styles.layerButton,
-						!userLocation && styles.layerButtonDisabled,
-					]}
-					onPress={handleLocateMe}
+					style={styles.layerButton}
+					onPress={undoLastWaypoint}
+					disabled={!hasWaypoints}
 				>
-					<Text style={styles.layerButtonIcon}>◎</Text>
+					<Undo2 size={20} color={hasWaypoints ? '#374151' : '#9ca3af'} />
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={styles.layerButton}
+					onPress={handleClearAll}
+					disabled={!hasWaypoints}
+				>
+					<Trash2 size={20} color={hasWaypoints ? '#dc2626' : '#9ca3af'} />
 				</TouchableOpacity>
 			</View>
 
@@ -275,13 +296,6 @@ const styles = StyleSheet.create({
 		shadowOpacity: 0.2,
 		shadowRadius: 3,
 		elevation: 4,
-	},
-	layerButtonDisabled: {
-		opacity: 0.4,
-	},
-	layerButtonIcon: {
-		fontSize: 20,
-		color: '#374151',
 	},
 	layerMenu: {
 		backgroundColor: '#fff',

@@ -38,8 +38,6 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 	const routeStats = useRouteStore((s) => s.routeStats);
 	const isSnapping = useRouteStore((s) => s.isSnapping);
 	const setIsSnapping = useRouteStore((s) => s.setIsSnapping);
-	const undoLastWaypoint = useRouteStore((s) => s.undoLastWaypoint);
-	const clearAll = useRouteStore((s) => s.clearAll);
 	const loadWaypoints = useRouteStore((s) => s.loadWaypoints);
 
 	const [offlineProgress, setOfflineProgress] = useState<number | null>(null);
@@ -197,21 +195,6 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 							value={isSnapping}
 							onValueChange={setIsSnapping}
 							trackColor={{ true: '#3b82f6' }}
-						/>
-					</View>
-
-					{/* Action buttons */}
-					<View style={styles.buttonRow}>
-						<ActionButton
-							label="Undo"
-							onPress={undoLastWaypoint}
-							disabled={!hasWaypoints}
-						/>
-						<ActionButton
-							label="Clear"
-							onPress={clearAll}
-							disabled={!hasWaypoints}
-							destructive
 						/>
 					</View>
 
