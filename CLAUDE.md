@@ -17,7 +17,7 @@ expo prebuild --clean  # regenerate native Android project
 ```
 
 ## Stack
-React Native 0.76, Expo 52 (bare workflow), MapLibre GL (`@maplibre/maplibre-react-native`), Zustand, TanStack Query, Zod v4, `react-native-svg`, `fast-xml-parser`, Stadia Maps (tiles + Valhalla routing)
+React Native 0.76, Expo 52 (bare workflow), MapLibre GL (`@maplibre/maplibre-react-native`), Zustand, TanStack Query, Zod v4, `react-native-svg`, `lucide-react-native`, `fast-xml-parser`, Stadia Maps (tiles + Valhalla routing)
 
 ## Folder Structure
 ```

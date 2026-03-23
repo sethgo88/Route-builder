@@ -26,6 +26,7 @@
 		"expo-sharing": "~13.0.0",
 		"expo-status-bar": "~2.0.1",
 		"fast-xml-parser": "^4.4.0",
+		"lucide-react-native": "^0.577.0",
 		"react": "18.3.1",
 		"react-native": "0.76.5",
 		"react-native-gesture-handler": "~2.20.2",
