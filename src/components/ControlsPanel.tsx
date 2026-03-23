@@ -173,7 +173,7 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 			<BottomSheetScrollView contentContainerStyle={styles.content}>
 				{/* Hint when no waypoints */}
 				{!hasWaypoints && (
-					<Text style={styles.hint}>Long-press to place first waypoint</Text>
+					<Text style={styles.hint}>Long-press the map to add waypoints</Text>
 				)}
 
 				{/* Elevation profile */}

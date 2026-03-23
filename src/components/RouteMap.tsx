@@ -46,10 +46,6 @@ export default function RouteMap() {
 	const mapViewRef = useRef<MapViewRef>(null);
 	const cameraRef = useRef<CameraRef>(null);
 	const hasCenteredOnUser = useRef(false);
-	const lastLongPressTime = useRef(0);
-	// Keep a ref to waypoints so handleTap closure doesn't go stale
-	const waypointsRef = useRef(waypoints);
-	waypointsRef.current = waypoints;
 
 	const [userLocation, setUserLocation] = useState<[number, number] | null>(
 		null,
@@ -115,20 +111,6 @@ export default function RouteMap() {
 
 	const handleLongPress = useCallback(
 		(feature: Feature<Geometry>) => {
-			lastLongPressTime.current = Date.now();
-			const point = feature as Feature<Point>;
-			const [longitude, latitude] = point.geometry.coordinates;
-			addWaypoint({ longitude, latitude });
-		},
-		[addWaypoint],
-	);
-
-	// Single-tap adds waypoints once the first waypoint exists (#9).
-	// The 600ms guard prevents a double-fire when a long-press also triggers onPress.
-	const handleTap = useCallback(
-		(feature: Feature<Geometry>) => {
-			if (waypointsRef.current.length === 0) return;
-			if (Date.now() - lastLongPressTime.current < 600) return;
 			const point = feature as Feature<Point>;
 			const [longitude, latitude] = point.geometry.coordinates;
 			addWaypoint({ longitude, latitude });
@@ -143,7 +125,6 @@ export default function RouteMap() {
 				style={styles.map}
 				mapStyle={activeStyle.style}
 				onLongPress={handleLongPress}
-				onPress={handleTap}
 				logoEnabled={false}
 				attributionEnabled
 				attributionPosition={{ bottom: 8, right: 8 }}
