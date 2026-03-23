@@ -4,21 +4,6 @@ import { useMemo } from 'react';
 import { useRouteStore } from '../store/routeStore';
 import { splitRouteByWaypoints } from '../utils/routeMidpoint';
 
-const SOLID_CASING = {
-	lineColor: '#1d4ed8',
-	lineWidth: 7,
-	lineCap: 'round' as const,
-	lineJoin: 'round' as const,
-	lineOpacity: 0.3,
-};
-
-const SOLID_LINE = {
-	lineColor: '#3b82f6',
-	lineWidth: 4,
-	lineCap: 'round' as const,
-	lineJoin: 'round' as const,
-};
-
 const DOTTED_LINE = {
 	lineColor: '#94a3b8',
 	lineWidth: 2,
@@ -29,19 +14,30 @@ const DOTTED_LINE = {
  * Renders the computed route as coloured segments.
  * - Segments adjacent to a dragging waypoint are suppressed (dragPreview covers them).
  * - Unsnapped segments (after drag end, before new route loads) render as dotted straight lines.
- * - Snapped segments render as solid blue using the computed route geometry.
+ * - Snapped segments render as a solid line using routeColor from the store.
  * Also renders drag-preview dotted lines while a marker is being dragged.
  * Must be a direct child of MapLibreGL.MapView.
  */
 export default function RoutePolyline() {
 	const route = useRouteStore((s) => s.route);
 	const waypoints = useRouteStore((s) => s.waypoints);
+	const routeColor = useRouteStore((s) => s.routeColor);
 	const pendingDragSegments = useRouteStore((s) => s.pendingDragSegments);
 	const draggingWaypointIndices = useRouteStore(
 		(s) => s.draggingWaypointIndices,
 	);
 	const dragPreviewCoord = useRouteStore((s) => s.dragPreviewCoord);
 	const dragPreviewNeighbors = useRouteStore((s) => s.dragPreviewNeighbors);
+
+	const solidLine = useMemo(
+		() => ({
+			lineColor: routeColor,
+			lineWidth: 4,
+			lineCap: 'round' as const,
+			lineJoin: 'round' as const,
+		}),
+		[routeColor],
+	);
 
 	const segments = useMemo(() => {
 		if (!route || waypoints.length < 2) return [];
@@ -137,13 +133,8 @@ export default function RoutePolyline() {
 				return (
 					<MapLibreGL.ShapeSource key={segId} id={segId} shape={shape}>
 						<MapLibreGL.LineLayer
-							id={`${segId}-casing`}
-							style={SOLID_CASING}
-							layerIndex={10}
-						/>
-						<MapLibreGL.LineLayer
 							id={`${segId}-line`}
-							style={SOLID_LINE}
+							style={solidLine}
 							layerIndex={11}
 						/>
 					</MapLibreGL.ShapeSource>

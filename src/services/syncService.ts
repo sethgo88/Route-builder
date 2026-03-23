@@ -12,7 +12,7 @@ import {
 	listLocalRemoteIds,
 	markRouteSynced,
 } from './db';
-import { supabase, type SupabaseRoute } from './supabase';
+import { type SupabaseRoute, supabase } from './supabase';
 
 /** Push a single local route to Supabase (upsert). Silent on failure. */
 export async function pushRoute(localId: number): Promise<void> {
@@ -86,7 +86,8 @@ export async function pullMissingRoutes(): Promise<void> {
 			.returns<SupabaseRoute[]>();
 
 		if (error) {
-			if (__DEV__) console.warn('[sync] pullMissingRoutes failed:', error.message);
+			if (__DEV__)
+				console.warn('[sync] pullMissingRoutes failed:', error.message);
 			return;
 		}
 		if (!remoteRoutes?.length) return;

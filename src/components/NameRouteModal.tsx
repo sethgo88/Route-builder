@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
 	Modal,
 	StyleSheet,
@@ -10,23 +10,28 @@ import {
 
 interface Props {
 	visible: boolean;
+	defaultName?: string;
 	onSave: (name: string) => void;
 	onCancel: () => void;
 }
 
-export default function NameRouteModal({ visible, onSave, onCancel }: Props) {
-	const [name, setName] = useState('');
+export default function NameRouteModal({
+	visible,
+	defaultName = '',
+	onSave,
+	onCancel,
+}: Props) {
+	const [name, setName] = useState(defaultName);
+
+	// Reset to defaultName each time the modal opens
+	useEffect(() => {
+		if (visible) setName(defaultName);
+	}, [visible, defaultName]);
 
 	function handleSave() {
 		const trimmed = name.trim();
 		if (!trimmed) return;
 		onSave(trimmed);
-		setName('');
-	}
-
-	function handleCancel() {
-		setName('');
-		onCancel();
 	}
 
 	return (
@@ -34,7 +39,7 @@ export default function NameRouteModal({ visible, onSave, onCancel }: Props) {
 			visible={visible}
 			transparent
 			animationType="fade"
-			onRequestClose={handleCancel}
+			onRequestClose={onCancel}
 		>
 			<View style={styles.overlay}>
 				<View style={styles.dialog}>
@@ -52,7 +57,7 @@ export default function NameRouteModal({ visible, onSave, onCancel }: Props) {
 					<View style={styles.row}>
 						<TouchableOpacity
 							style={[styles.btn, styles.cancelBtn]}
-							onPress={handleCancel}
+							onPress={onCancel}
 						>
 							<Text style={styles.cancelText}>Cancel</Text>
 						</TouchableOpacity>
