@@ -3,7 +3,7 @@ import MapLibreGL, {
 	type MapViewRef,
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
-import type { Feature, Geometry, MultiLineString, Point } from 'geojson';
+import type { Feature, Geometry, Point } from 'geojson';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	ActivityIndicator,
@@ -37,21 +37,25 @@ export default function RouteMap() {
 	const addWaypoint = useRouteStore((s) => s.addWaypoint);
 	const focusCoordinate = useRouteStore((s) => s.focusCoordinate);
 	const setFocusCoordinate = useRouteStore((s) => s.setFocusCoordinate);
+	const setDraggingIndices = useRouteStore((s) => s.setDraggingIndices);
+	const clearDraggingIndices = useRouteStore((s) => s.clearDraggingIndices);
+	const setPendingDragSegments = useRouteStore((s) => s.setPendingDragSegments);
+	const setDragPreview = useRouteStore((s) => s.setDragPreview);
+	const clearDragPreview = useRouteStore((s) => s.clearDragPreview);
 
 	const mapViewRef = useRef<MapViewRef>(null);
 	const cameraRef = useRef<CameraRef>(null);
 	const hasCenteredOnUser = useRef(false);
+	const lastLongPressTime = useRef(0);
+	// Keep a ref to waypoints so handleTap closure doesn't go stale
+	const waypointsRef = useRef(waypoints);
+	waypointsRef.current = waypoints;
+
 	const [userLocation, setUserLocation] = useState<[number, number] | null>(
 		null,
 	);
-
 	const [activeStyleId, setActiveStyleId] = useState<MapStyleId>('outdoors');
 	const [layerMenuOpen, setLayerMenuOpen] = useState(false);
-
-	const [dragPreview, setDragPreview] = useState<{
-		coord: Coordinate;
-		neighbors: Coordinate[];
-	} | null>(null);
 
 	const activeStyle =
 		MAP_STYLES.find((s) => s.id === activeStyleId) ?? MAP_STYLES[0];
@@ -66,24 +70,6 @@ export default function RouteMap() {
 				: [],
 		[route, waypoints],
 	);
-
-	const dragPreviewShape = useMemo((): Feature<MultiLineString> | null => {
-		if (!dragPreview) return null;
-		const { coord, neighbors } = dragPreview;
-		return {
-			type: 'Feature',
-			geometry: {
-				type: 'MultiLineString',
-				coordinates: neighbors.map((n) => [
-					[coord.longitude, coord.latitude],
-					[n.longitude, n.latitude],
-				]),
-			},
-			properties: {},
-		};
-	}, [dragPreview]);
-
-	const clearDragPreview = useCallback(() => setDragPreview(null), []);
 
 	// Fly to coordinate when set from the elevation profile
 	useEffect(() => {
@@ -129,6 +115,20 @@ export default function RouteMap() {
 
 	const handleLongPress = useCallback(
 		(feature: Feature<Geometry>) => {
+			lastLongPressTime.current = Date.now();
+			const point = feature as Feature<Point>;
+			const [longitude, latitude] = point.geometry.coordinates;
+			addWaypoint({ longitude, latitude });
+		},
+		[addWaypoint],
+	);
+
+	// Single-tap adds waypoints once the first waypoint exists (#9).
+	// The 600ms guard prevents a double-fire when a long-press also triggers onPress.
+	const handleTap = useCallback(
+		(feature: Feature<Geometry>) => {
+			if (waypointsRef.current.length === 0) return;
+			if (Date.now() - lastLongPressTime.current < 600) return;
 			const point = feature as Feature<Point>;
 			const [longitude, latitude] = point.geometry.coordinates;
 			addWaypoint({ longitude, latitude });
@@ -143,6 +143,7 @@ export default function RouteMap() {
 				style={styles.map}
 				mapStyle={activeStyle.style}
 				onLongPress={handleLongPress}
+				onPress={handleTap}
 				logoEnabled={false}
 				attributionEnabled
 				attributionPosition={{ bottom: 8, right: 8 }}
@@ -158,19 +159,6 @@ export default function RouteMap() {
 
 				<RoutePolyline />
 
-				{dragPreviewShape && (
-					<MapLibreGL.ShapeSource id="drag-preview" shape={dragPreviewShape}>
-						<MapLibreGL.LineLayer
-							id="drag-preview-line"
-							style={{
-								lineColor: '#94a3b8',
-								lineWidth: 2,
-								lineDasharray: [4, 3],
-							}}
-						/>
-					</MapLibreGL.ShapeSource>
-				)}
-
 				{waypoints.map((wp, index) => (
 					<WaypointMarker
 						key={wp.id}
@@ -182,9 +170,17 @@ export default function RouteMap() {
 							if (index > 0) neighbors.push(waypoints[index - 1].coordinate);
 							if (index < waypoints.length - 1)
 								neighbors.push(waypoints[index + 1].coordinate);
-							setDragPreview({ coord, neighbors });
+							setDragPreview(coord, neighbors);
+							setDraggingIndices([index]);
 						}}
-						onDragFinish={clearDragPreview}
+						onDragFinish={() => {
+							clearDragPreview();
+							clearDraggingIndices();
+							const pending: number[] = [];
+							if (index > 0) pending.push(index - 1);
+							if (index < waypoints.length - 1) pending.push(index);
+							setPendingDragSegments(pending);
+						}}
 					/>
 				))}
 
@@ -197,13 +193,15 @@ export default function RouteMap() {
 							id={`mid-${wp.id}-${next.id}`}
 							coordinate={midCoord}
 							afterIndex={index}
-							onDragMove={(coord) =>
-								setDragPreview({
-									coord,
-									neighbors: [wp.coordinate, next.coordinate],
-								})
-							}
-							onDragFinish={clearDragPreview}
+							onDragMove={(coord) => {
+								setDragPreview(coord, [wp.coordinate, next.coordinate]);
+								setDraggingIndices([index, index + 1]);
+							}}
+							onDragFinish={() => {
+								clearDragPreview();
+								clearDraggingIndices();
+								setPendingDragSegments([index]);
+							}}
 						/>
 					);
 				})}

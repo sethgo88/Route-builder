@@ -29,6 +29,14 @@ interface RouteState {
 	isLoading: boolean;
 	/** Set by ElevationProfile on tap; watched by RouteMap to fly camera */
 	focusCoordinate: [number, number] | null;
+	/** Indices of waypoints currently being dragged; adjacent route segments are suppressed */
+	draggingWaypointIndices: number[];
+	/** Segment indices that render as dotted straight lines after drag ends, until route resolves */
+	pendingDragSegments: number[];
+	/** Current drag position; null when not dragging */
+	dragPreviewCoord: Coordinate | null;
+	/** Neighbour waypoint coordinates for the drag preview lines */
+	dragPreviewNeighbors: Coordinate[];
 }
 
 interface RouteActions {
@@ -46,12 +54,17 @@ interface RouteActions {
 	clearAll: () => void;
 	/** Load an array of coordinates as waypoints (e.g. from GPX import) */
 	loadWaypoints: (coords: Coordinate[]) => void;
+	setDraggingIndices: (indices: number[]) => void;
+	clearDraggingIndices: () => void;
+	setPendingDragSegments: (indices: number[]) => void;
+	setDragPreview: (coord: Coordinate, neighbors: Coordinate[]) => void;
+	clearDragPreview: () => void;
 }
 
 function makeId(): string {
-	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+	return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
 		const r = (Math.random() * 16) | 0;
-		const v = c === "x" ? r : (r & 0x3) | 0x8;
+		const v = c === 'x' ? r : (r & 0x3) | 0x8;
 		return v.toString(16);
 	});
 }
@@ -64,6 +77,10 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 	isSnapping: true,
 	isLoading: false,
 	focusCoordinate: null,
+	draggingWaypointIndices: [],
+	pendingDragSegments: [],
+	dragPreviewCoord: null,
+	dragPreviewNeighbors: [],
 
 	addWaypoint: (coord) =>
 		set((state) => ({
@@ -94,7 +111,7 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 			waypoints: state.waypoints.slice(0, -1),
 		})),
 
-	setRoute: (route) => set({ route }),
+	setRoute: (route) => set({ route, pendingDragSegments: [] }),
 	setElevationData: (elevationData) => set({ elevationData }),
 	setRouteStats: (routeStats) => set({ routeStats }),
 	setIsSnapping: (isSnapping) => set({ isSnapping }),
@@ -117,4 +134,13 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 			elevationData: [],
 			routeStats: null,
 		}),
+
+	setDraggingIndices: (draggingWaypointIndices) =>
+		set({ draggingWaypointIndices }),
+	clearDraggingIndices: () => set({ draggingWaypointIndices: [] }),
+	setPendingDragSegments: (pendingDragSegments) => set({ pendingDragSegments }),
+	setDragPreview: (dragPreviewCoord, dragPreviewNeighbors) =>
+		set({ dragPreviewCoord, dragPreviewNeighbors }),
+	clearDragPreview: () =>
+		set({ dragPreviewCoord: null, dragPreviewNeighbors: [] }),
 }));

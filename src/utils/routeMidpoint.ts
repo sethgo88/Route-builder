@@ -53,6 +53,39 @@ function midpointAlongPath(coords: number[][]): [number, number] {
 }
 
 /**
+ * Splits the route into one coordinate sub-array per consecutive waypoint pair.
+ * Returns N-1 arrays for N waypoints.
+ */
+export function splitRouteByWaypoints(
+	routeCoords: number[][],
+	waypoints: Coordinate[],
+): number[][][] {
+	if (waypoints.length < 2 || routeCoords.length === 0) return [];
+
+	const indices: number[] = [];
+	let searchFrom = 0;
+	for (const wp of waypoints) {
+		const idx = closestIndex(
+			routeCoords,
+			searchFrom,
+			wp.longitude,
+			wp.latitude,
+		);
+		indices.push(idx);
+		searchFrom = idx;
+	}
+
+	const segments: number[][][] = [];
+	for (let i = 0; i < indices.length - 1; i++) {
+		const seg = routeCoords.slice(indices[i], indices[i + 1] + 1);
+		segments.push(
+			seg.length >= 2 ? seg : routeCoords.slice(indices[i], indices[i] + 2),
+		);
+	}
+	return segments;
+}
+
+/**
  * For each consecutive waypoint pair, returns the coordinate at the midpoint
  * along the actual route line (not the straight-line midpoint).
  */
