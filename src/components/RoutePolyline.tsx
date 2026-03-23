@@ -95,6 +95,9 @@ export default function RoutePolyline() {
 
 				if (draggingAffected.has(i)) return null;
 
+				// Route geometry hasn't caught up yet (e.g. new waypoint just added)
+				if (segCoords.length < 2) return null;
+
 				if (pendingSet.has(i)) {
 					const shape: Feature<LineString> = {
 						type: 'Feature',
