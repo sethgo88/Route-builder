@@ -19,6 +19,7 @@ export function useRouting(): void {
 	const setElevationData = useRouteStore((s) => s.setElevationData);
 	const setRouteStats = useRouteStore((s) => s.setRouteStats);
 	const setIsLoading = useRouteStore((s) => s.setIsLoading);
+	const setPendingDragSegments = useRouteStore((s) => s.setPendingDragSegments);
 
 	// Debounce both inputs so drag events don't fire a request on every pixel
 	const debouncedWaypoints = useDebounce(waypoints, DEBOUNCE_MS);
@@ -57,10 +58,13 @@ export function useRouting(): void {
 		}
 	}, [debouncedWaypoints.length, setRoute, setElevationData, setRouteStats]);
 
-	// Keep the store's isLoading in sync with query fetch state
+	// Keep the store's isLoading in sync with query fetch state.
+	// Also clear pending (unsnapped) drag segments once the query settles —
+	// this covers cache hits where `data` doesn't change and setRoute is never called.
 	useEffect(() => {
 		setIsLoading(isFetching);
-	}, [isFetching, setIsLoading]);
+		if (!isFetching) setPendingDragSegments([]);
+	}, [isFetching, setIsLoading, setPendingDragSegments]);
 
 	// Surface routing errors to the user
 	useEffect(() => {

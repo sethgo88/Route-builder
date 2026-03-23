@@ -28,8 +28,8 @@ const DOTTED_LINE = {
 /**
  * Renders the computed route as coloured segments.
  * - Segments adjacent to a dragging waypoint are suppressed (dragPreview covers them).
- * - Pending segments (after drag end, before new route loads) render as dotted straight lines.
- * - Normal segments render as solid blue.
+ * - Unsnapped segments (after drag end, before new route loads) render as dotted straight lines.
+ * - Snapped segments render as solid blue using the computed route geometry.
  * Also renders drag-preview dotted lines while a marker is being dragged.
  * Must be a direct child of MapLibreGL.MapView.
  */
@@ -99,6 +99,10 @@ export default function RoutePolyline() {
 				if (segCoords.length < 2) return null;
 
 				if (pendingSet.has(i)) {
+					// Use a distinct source ID ("unsnapped") so MapLibre destroys and
+					// recreates the layer when this segment transitions back to snapped.
+					// Reusing the same ID would leave the dotted style in place.
+					const unsnappedId = `${segId}-unsnapped`;
 					const shape: Feature<LineString> = {
 						type: 'Feature',
 						geometry: {
@@ -111,9 +115,13 @@ export default function RoutePolyline() {
 						properties: {},
 					};
 					return (
-						<MapLibreGL.ShapeSource key={segId} id={segId} shape={shape}>
+						<MapLibreGL.ShapeSource
+							key={unsnappedId}
+							id={unsnappedId}
+							shape={shape}
+						>
 							<MapLibreGL.LineLayer
-								id={`${segId}-line`}
+								id={`${unsnappedId}-line`}
 								style={DOTTED_LINE}
 								layerIndex={11}
 							/>
