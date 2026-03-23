@@ -6,6 +6,7 @@ import MapLibreGL, { type MapViewRef } from '@maplibre/maplibre-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { ArrowLeft } from 'lucide-react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -64,6 +65,7 @@ interface Props {
 }
 
 export default function ControlsPanel({ mapViewRef }: Props) {
+	const queryClient = useQueryClient();
 	const snapPoints = useMemo(() => ['18%', '65%'], []);
 	const bottomSheetRef = useRef<BottomSheet>(null);
 	const { width } = useWindowDimensions();
@@ -251,10 +253,12 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 			);
 			return;
 		}
+		queryClient.invalidateQueries({ queryKey: ['savedRoutes'] });
 		pushRoute(activeRouteId).catch(() => {});
 		clearAll();
 		setEditingMode('view');
 	}, [
+		queryClient,
 		activeRouteId,
 		editingRouteName,
 		routeColor,
@@ -305,6 +309,7 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 					route,
 					routeStats,
 				);
+				queryClient.invalidateQueries({ queryKey: ['savedRoutes'] });
 				pushRoute(activeRouteId).catch(() => {});
 			} catch {
 				// save failed silently — still navigate away
@@ -314,6 +319,7 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 		clearAll();
 		setEditingMode('view');
 	}, [
+		queryClient,
 		activeRouteId,
 		editingRouteName,
 		routeColor,
