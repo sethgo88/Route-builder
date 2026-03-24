@@ -36,7 +36,6 @@ import MidpointMarker from './MidpointMarker';
 import RoutePolyline from './RoutePolyline';
 import WaypointMarker from './WaypointMarker';
 
-
 export default function RouteMap() {
 	// Drive routing side-effects
 	useRouting();
@@ -287,8 +286,7 @@ export default function RouteMap() {
 							routeBearing={waypointBearings[index] ?? 0}
 							onDragMove={(coord) => {
 								const neighbors: Coordinate[] = [];
-								if (index > 0)
-									neighbors.push(waypoints[index - 1].coordinate);
+								if (index > 0) neighbors.push(waypoints[index - 1].coordinate);
 								if (index < waypoints.length - 1)
 									neighbors.push(waypoints[index + 1].coordinate);
 								setDragPreview(coord, neighbors);

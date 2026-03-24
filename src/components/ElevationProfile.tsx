@@ -12,17 +12,11 @@ import Svg, {
 	Text as SvgText,
 } from 'react-native-svg';
 import { useRouteStore } from '../store/routeStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { formatDist, formatEle, type UnitSystem } from '../utils/units';
 
 const CHART_HEIGHT = 80;
 const PAD = { top: 4, bottom: 20, left: 36, right: 8 };
-
-function formatEle(m: number): string {
-	return `${Math.round(m)}m`;
-}
-
-function formatDist(km: number): string {
-	return km >= 1 ? `${km.toFixed(1)}km` : `${Math.round(km * 1000)}m`;
-}
 
 interface ChartPath {
 	areaPath: string;
@@ -32,7 +26,11 @@ interface ChartPath {
 	pointCoords: { x: number; y: number }[];
 }
 
-function buildChart(data: [number, number][], width: number): ChartPath | null {
+function buildChart(
+	data: [number, number][],
+	width: number,
+	unitSystem: UnitSystem,
+): ChartPath | null {
 	if (data.length < 2) return null;
 
 	const innerW = width - PAD.left - PAD.right;
@@ -63,12 +61,12 @@ function buildChart(data: [number, number][], width: number): ChartPath | null {
 
 	const xTicks = [0, 0.5, 1].map((t) => ({
 		x: toX(maxDist * t),
-		label: formatDist(maxDist * t),
+		label: formatDist(maxDist * t, unitSystem),
 	}));
 
 	const yTicks = [
-		{ y: toY(maxEle), label: formatEle(maxEle) },
-		{ y: toY(minEle), label: formatEle(minEle) },
+		{ y: toY(maxEle), label: formatEle(maxEle, unitSystem) },
+		{ y: toY(minEle), label: formatEle(minEle, unitSystem) },
 	];
 
 	return { areaPath, linePath, xTicks, yTicks, pointCoords };
@@ -83,13 +81,16 @@ export default function ElevationProfile({ width }: Props) {
 	const routeStats = useRouteStore((s) => s.routeStats);
 	const route = useRouteStore((s) => s.route);
 	const setFocusCoordinate = useRouteStore((s) => s.setFocusCoordinate);
-	const setElevationMarkerCoord = useRouteStore((s) => s.setElevationMarkerCoord);
+	const setElevationMarkerCoord = useRouteStore(
+		(s) => s.setElevationMarkerCoord,
+	);
+	const unitSystem = useSettingsStore((s) => s.unitSystem);
 
 	const [tappedIdx, setTappedIdx] = useState<number | null>(null);
 
 	const chart = useMemo(
-		() => buildChart(elevationData, width),
-		[elevationData, width],
+		() => buildChart(elevationData, width, unitSystem),
+		[elevationData, width, unitSystem],
 	);
 
 	const findIdx = useCallback(
@@ -137,16 +138,19 @@ export default function ElevationProfile({ width }: Props) {
 		<View style={styles.container}>
 			{/* Stats row — total route stats + scrub position on the right */}
 			<View style={styles.statsRow}>
-				<Text style={styles.statText}>{formatDist(routeStats.distanceKm)}</Text>
+				<Text style={styles.statText}>
+					{formatDist(routeStats.distanceKm, unitSystem)}
+				</Text>
 				<Text style={[styles.statText, styles.gain]}>
-					↑ {formatEle(routeStats.gainM)}
+					{'\u2191'} {formatEle(routeStats.gainM, unitSystem)}
 				</Text>
 				<Text style={[styles.statText, styles.loss]}>
-					↓ {formatEle(routeStats.lossM)}
+					{'\u2193'} {formatEle(routeStats.lossM, unitSystem)}
 				</Text>
 				{tappedEle !== null && tappedDist !== null && (
 					<Text style={[styles.statText, styles.scrubStat]}>
-						↑ {formatEle(tappedEle)} · {formatDist(tappedDist)}
+						{'\u2191'} {formatEle(tappedEle, unitSystem)} {'\u00b7'}{' '}
+						{formatDist(tappedDist, unitSystem)}
 					</Text>
 				)}
 			</View>

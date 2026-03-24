@@ -156,12 +156,18 @@ export async function fetchRoute(
 			`Unexpected elevation response: ${elevationParsed.error.message}`,
 		);
 	}
-	// range_height: [[rangeKm, elevationM], ...]
+	// range_height: [[rangeMeters, elevationM], ...] — Valhalla returns range in meters
 	const rangeHeight = elevationParsed.data.range_height;
 	const heights = rangeHeight.map(([_, h]) => h);
 	const { gainM, lossM } = calcGainLoss(heights);
 
+	// Normalise range to km so elevationData matches the [distanceKm, elevationM] contract
+	const elevationData: [number, number][] = rangeHeight.map(([r, h]) => [
+		r / 1000,
+		h,
+	]);
+
 	const stats: RouteStats = { distanceKm, gainM, lossM };
 
-	return { route, elevationData: rangeHeight, stats };
+	return { route, elevationData, stats };
 }
