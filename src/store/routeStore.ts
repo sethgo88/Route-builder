@@ -149,7 +149,8 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 	setIsSnapping: (isSnapping) => set({ isSnapping }),
 	setIsLoading: (isLoading) => set({ isLoading }),
 	setFocusCoordinate: (focusCoordinate) => set({ focusCoordinate }),
-	setElevationMarkerCoord: (elevationMarkerCoord) => set({ elevationMarkerCoord }),
+	setElevationMarkerCoord: (elevationMarkerCoord) =>
+		set({ elevationMarkerCoord }),
 
 	clearAll: () =>
 		set({

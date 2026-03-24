@@ -61,6 +61,56 @@ export function initDb(): void {
 			// Column already exists — safe to ignore
 		}
 	}
+
+	// Settings table
+	db.execSync(
+		`CREATE TABLE IF NOT EXISTS settings (
+			key        TEXT PRIMARY KEY,
+			value      TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);`,
+	);
+
+	// Seed default unit preference on first run
+	db.runSync(
+		`INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)`,
+		'unit_system',
+		'metric',
+		new Date().toISOString(),
+	);
+}
+
+export function getSetting(key: string): string | null {
+	const db = getDb();
+	const row = db.getFirstSync<{ value: string }>(
+		'SELECT value FROM settings WHERE key = ?',
+		key,
+	);
+	return row?.value ?? null;
+}
+
+export function setSetting(key: string, value: string): void {
+	const db = getDb();
+	db.runSync(
+		`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+		key,
+		value,
+		new Date().toISOString(),
+	);
+}
+
+/** Returns value + timestamp — used by sync to compare with remote. */
+export function getSettingRow(
+	key: string,
+): { value: string; updatedAt: string } | null {
+	const db = getDb();
+	const row = db.getFirstSync<{ value: string; updated_at: string }>(
+		'SELECT value, updated_at FROM settings WHERE key = ?',
+		key,
+	);
+	if (!row) return null;
+	return { value: row.value, updatedAt: row.updated_at };
 }
 
 export function saveRoute(

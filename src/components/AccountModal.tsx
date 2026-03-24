@@ -12,8 +12,10 @@ import {
 	View,
 } from 'react-native';
 import { signIn, signOut } from '../services/authService';
-import { pullMissingRoutes } from '../services/syncService';
+import { pullMissingRoutes, pullSettings } from '../services/syncService';
 import { useAuthStore } from '../store/authStore';
+import { useSettingsStore } from '../store/settingsStore';
+import type { UnitSystem } from '../utils/units';
 
 interface Props {
 	visible: boolean;
@@ -28,6 +30,7 @@ export default function AccountModal({
 	onSyncComplete,
 }: Props) {
 	const user = useAuthStore((s) => s.user);
+	const setUnitSystem = useSettingsStore((s) => s.setUnitSystem);
 
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
@@ -45,10 +48,18 @@ export default function AccountModal({
 				Alert.alert('Sign-in failed', result.error);
 				return;
 			}
-			// Pull any missing remote routes in the background
+			// Pull remote data in the background
 			pullMissingRoutes()
 				.then(() => onSyncComplete?.())
 				.catch(() => {}); // silent
+			pullSettings((key, value) => {
+				if (
+					key === 'unit_system' &&
+					(value === 'metric' || value === 'imperial')
+				) {
+					setUnitSystem(value as UnitSystem);
+				}
+			}).catch(() => {}); // silent
 			onClose();
 		} finally {
 			setIsBusy(false);

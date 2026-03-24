@@ -40,3 +40,11 @@ export interface SupabaseRoute {
 	updated_at: string;
 	deleted_at: string | null;
 }
+
+/** Row shape for the Supabase `user_settings` table. */
+export interface SupabaseUserSetting {
+	user_id: string;
+	key: string;
+	value: string;
+	updated_at: string;
+}

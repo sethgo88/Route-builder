@@ -8,11 +8,17 @@ import type { Feature, LineString } from 'geojson';
 import type { RouteStats, Waypoint } from '../store/routeStore';
 import {
 	getRouteForSync,
+	getSettingRow,
 	insertRemoteRoute,
 	listLocalRemoteIds,
 	markRouteSynced,
+	setSetting,
 } from './db';
-import { type SupabaseRoute, supabase } from './supabase';
+import {
+	type SupabaseRoute,
+	type SupabaseUserSetting,
+	supabase,
+} from './supabase';
 
 /** Push a single local route to Supabase (upsert). Silent on failure. */
 export async function pushRoute(localId: number): Promise<void> {
@@ -108,5 +114,64 @@ export async function pullMissingRoutes(): Promise<void> {
 		}
 	} catch (err) {
 		if (__DEV__) console.warn('[sync] pullMissingRoutes exception:', err);
+	}
+}
+
+/** Push a single setting key/value to Supabase user_settings. Silent on failure. */
+export async function pushSetting(key: string, value: string): Promise<void> {
+	try {
+		const { data: userData } = await supabase.auth.getUser();
+		if (!userData.user) return;
+
+		const { error } = await supabase.from('user_settings').upsert(
+			{
+				user_id: userData.user.id,
+				key,
+				value,
+				updated_at: new Date().toISOString(),
+			},
+			{ onConflict: 'user_id,key' },
+		);
+
+		if (error && __DEV__)
+			console.warn('[sync] pushSetting failed:', error.message);
+	} catch (err) {
+		if (__DEV__) console.warn('[sync] pushSetting exception:', err);
+	}
+}
+
+/**
+ * Pull user_settings from Supabase and apply any that are newer than local.
+ * Calls `applyFn` for each setting that wins.
+ */
+export async function pullSettings(
+	applyFn: (key: string, value: string) => void,
+): Promise<void> {
+	try {
+		const { data: userData } = await supabase.auth.getUser();
+		if (!userData.user) return;
+
+		const { data: remoteSettings, error } = await supabase
+			.from('user_settings')
+			.select('*')
+			.returns<SupabaseUserSetting[]>();
+
+		if (error) {
+			if (__DEV__) console.warn('[sync] pullSettings failed:', error.message);
+			return;
+		}
+		if (!remoteSettings?.length) return;
+
+		for (const remote of remoteSettings) {
+			const local = getSettingRow(remote.key);
+			const remoteIsNewer =
+				!local || new Date(remote.updated_at) > new Date(local.updatedAt);
+			if (remoteIsNewer) {
+				setSetting(remote.key, remote.value);
+				applyFn(remote.key, remote.value);
+			}
+		}
+	} catch (err) {
+		if (__DEV__) console.warn('[sync] pullSettings exception:', err);
 	}
 }

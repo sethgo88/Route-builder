@@ -3,10 +3,10 @@ import BottomSheet, {
 	BottomSheetTextInput,
 } from '@gorhom/bottom-sheet';
 import MapLibreGL, { type MapViewRef } from '@maplibre/maplibre-react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { ArrowLeft, Save } from 'lucide-react-native';
-import { useQueryClient } from '@tanstack/react-query';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -37,6 +37,8 @@ import { parseGpx } from '../services/gpxParser';
 import { deleteRouteInCloud, pushRoute } from '../services/syncService';
 import { useAuthStore } from '../store/authStore';
 import { useRouteStore } from '../store/routeStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { formatDist, formatEle } from '../utils/units';
 import AccountModal from './AccountModal';
 import ElevationProfile from './ElevationProfile';
 import RouteActionBar from './RouteActionBar';
@@ -92,6 +94,10 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 
 	const authUser = useAuthStore((s) => s.user);
 
+	const unitSystem = useSettingsStore((s) => s.unitSystem);
+	const setUnitSystem = useSettingsStore((s) => s.setUnitSystem);
+	const loadSettings = useSettingsStore((s) => s.loadSettings);
+
 	const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
 	const [offlineProgress, setOfflineProgress] = useState<number | null>(null);
 	const [isExporting, setIsExporting] = useState(false);
@@ -99,11 +105,12 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 	const [showAccount, setShowAccount] = useState(false);
 	const [leaveGuardVisible, setLeaveGuardVisible] = useState(false);
 
-	// Initialise DB and load saved routes on mount
+	// Initialise DB and load saved routes + settings on mount
 	useEffect(() => {
 		initDb();
+		loadSettings();
 		setSavedRoutes(listRoutes());
-	}, []);
+	}, [loadSettings]);
 
 	// Refresh list whenever we return to view mode
 	useEffect(() => {
@@ -114,10 +121,11 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 		setSavedRoutes(listRoutes());
 	}, []);
 
-	// Always collapse sheet when entering creating, editing, or view mode
+	// Collapse sheet on every mode transition
+	// biome-ignore lint/correctness/useExhaustiveDependencies: editingMode is an intentional trigger
 	useEffect(() => {
 		bottomSheetRef.current?.snapToIndex(0);
-	}, [isCreating, isEditing]);
+	}, [editingMode]);
 
 	// ── GPX Export ─────────────────────────────────────────────────────────────
 	const handleExport = useCallback(async () => {
@@ -301,7 +309,14 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 		}
 		clearAll();
 		setEditingMode('view');
-	}, [activeRouteId, editingRouteName, routeColor, waypoints, clearAll, setEditingMode]);
+	}, [
+		activeRouteId,
+		editingRouteName,
+		routeColor,
+		waypoints,
+		clearAll,
+		setEditingMode,
+	]);
 
 	const handleLeaveGuardContinue = useCallback(() => {
 		setLeaveGuardVisible(false);
@@ -376,8 +391,9 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 											<Text style={styles.savedName}>{r.name}</Text>
 											{r.stats && (
 												<Text style={styles.savedMeta}>
-													{r.stats.distanceKm.toFixed(2)} km ·{' '}
-													{r.stats.gainM.toFixed(0)} m gain
+													{formatDist(r.stats.distanceKm, unitSystem)}
+													{' \u00b7 '}
+													{formatEle(r.stats.gainM, unitSystem)} gain
 												</Text>
 											)}
 										</View>
@@ -419,7 +435,10 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 							/>
 
 							<TouchableOpacity
-								style={[styles.saveIconButton, !hasRoute && styles.saveIconDisabled]}
+								style={[
+									styles.saveIconButton,
+									!hasRoute && styles.saveIconDisabled,
+								]}
 								onPress={handleEditSave}
 								disabled={!hasRoute}
 							>
@@ -477,6 +496,45 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 								onValueChange={setIsSnapping}
 								trackColor={{ true: '#3b82f6' }}
 							/>
+						</View>
+
+						{/* Units toggle */}
+						<View style={styles.row}>
+							<Text style={styles.controlLabel}>Units</Text>
+							<View style={styles.unitToggle}>
+								<TouchableOpacity
+									style={[
+										styles.unitOption,
+										unitSystem === 'metric' && styles.unitOptionActive,
+									]}
+									onPress={() => setUnitSystem('metric')}
+								>
+									<Text
+										style={[
+											styles.unitOptionText,
+											unitSystem === 'metric' && styles.unitOptionTextActive,
+										]}
+									>
+										km / m
+									</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									style={[
+										styles.unitOption,
+										unitSystem === 'imperial' && styles.unitOptionActive,
+									]}
+									onPress={() => setUnitSystem('imperial')}
+								>
+									<Text
+										style={[
+											styles.unitOptionText,
+											unitSystem === 'imperial' && styles.unitOptionTextActive,
+										]}
+									>
+										mi / ft
+									</Text>
+								</TouchableOpacity>
+							</View>
 						</View>
 
 						<View style={styles.buttonRow}>
@@ -717,6 +775,29 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		color: '#374151',
 		fontWeight: '500',
+	},
+	unitToggle: {
+		flexDirection: 'row',
+		borderRadius: 8,
+		borderWidth: 1,
+		borderColor: '#d1d5db',
+		overflow: 'hidden',
+	},
+	unitOption: {
+		paddingHorizontal: 12,
+		paddingVertical: 6,
+		backgroundColor: '#fff',
+	},
+	unitOptionActive: {
+		backgroundColor: '#3b82f6',
+	},
+	unitOptionText: {
+		fontSize: 13,
+		fontWeight: '500',
+		color: '#374151',
+	},
+	unitOptionTextActive: {
+		color: '#fff',
 	},
 	buttonRow: {
 		flexDirection: 'row',
