@@ -67,7 +67,7 @@ interface Props {
 
 export default function ControlsPanel({ mapViewRef }: Props) {
 	const queryClient = useQueryClient();
-	const snapPoints = useMemo(() => ['27%', '65%'], []);
+	const snapPoints = useMemo(() => ['24%', '65%'], []);
 	const bottomSheetRef = useRef<BottomSheet>(null);
 	const { width } = useWindowDimensions();
 
@@ -648,7 +648,7 @@ const styles = StyleSheet.create({
 	editPanel: {
 		paddingHorizontal: 16,
 		paddingTop: 8,
-		gap: 12,
+		gap: 2,
 	},
 	editHeader: {
 		flexDirection: 'row',
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
 		borderColor: '#d1d5db',
 		borderRadius: 8,
 		paddingHorizontal: 12,
-		paddingVertical: 7,
+		paddingVertical: 3,
 		fontSize: 15,
 		color: '#111827',
 		backgroundColor: '#fff',

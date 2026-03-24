@@ -27,11 +27,15 @@ import { useRoutes } from '../hooks/useRoutes';
 import { useRouting } from '../hooks/useRouting';
 import type { SavedRoute } from '../services/db';
 import { type Coordinate, useRouteStore } from '../store/routeStore';
-import { computeSegmentMidpoints } from '../utils/routeMidpoint';
+import {
+	computeSegmentMidpointsWithBearings,
+	computeWaypointBearingsFromRoute,
+} from '../utils/routeMidpoint';
 import ControlsPanel from './ControlsPanel';
 import MidpointMarker from './MidpointMarker';
 import RoutePolyline from './RoutePolyline';
 import WaypointMarker from './WaypointMarker';
+
 
 export default function RouteMap() {
 	// Drive routing side-effects
@@ -103,14 +107,25 @@ export default function RouteMap() {
 	const activeStyle =
 		MAP_STYLES.find((s) => s.id === activeStyleId) ?? MAP_STYLES[0];
 
-	const segmentMidpoints = useMemo(
+	const segmentData = useMemo(
 		() =>
 			route
-				? computeSegmentMidpoints(
+				? computeSegmentMidpointsWithBearings(
 						route.geometry.coordinates,
 						waypoints.map((wp) => wp.coordinate),
 					)
 				: [],
+		[route, waypoints],
+	);
+
+	const waypointBearings = useMemo(
+		() =>
+			route
+				? computeWaypointBearingsFromRoute(
+						route.geometry.coordinates,
+						waypoints.map((wp) => wp.coordinate),
+					)
+				: waypoints.map(() => 0),
 		[route, waypoints],
 	);
 
@@ -234,7 +249,7 @@ export default function RouteMap() {
 								lineCap: 'round',
 								lineJoin: 'round',
 							}}
-							layerIndex={9}
+							aboveLayerID="stadia-raster"
 						/>
 					</MapLibreGL.ShapeSource>
 				)}
@@ -269,9 +284,11 @@ export default function RouteMap() {
 							waypoint={wp}
 							index={index}
 							total={waypoints.length}
+							routeBearing={waypointBearings[index] ?? 0}
 							onDragMove={(coord) => {
 								const neighbors: Coordinate[] = [];
-								if (index > 0) neighbors.push(waypoints[index - 1].coordinate);
+								if (index > 0)
+									neighbors.push(waypoints[index - 1].coordinate);
 								if (index < waypoints.length - 1)
 									neighbors.push(waypoints[index + 1].coordinate);
 								setDragPreview(coord, neighbors);
@@ -289,15 +306,16 @@ export default function RouteMap() {
 					))}
 
 				{isActive &&
-					segmentMidpoints.map((midCoord, index) => {
+					segmentData.map((mid, index) => {
 						const wp = waypoints[index];
 						const next = waypoints[index + 1];
 						return (
 							<MidpointMarker
 								key={`mid-${wp.id}-${next.id}`}
 								id={`mid-${wp.id}-${next.id}`}
-								coordinate={midCoord}
+								coordinate={mid.coordinate}
 								afterIndex={index}
+								segmentBearing={mid.bearing}
 								onDragMove={(coord) => {
 									setDragPreview(coord, [wp.coordinate, next.coordinate]);
 									setDraggingIndices([index, index + 1]);

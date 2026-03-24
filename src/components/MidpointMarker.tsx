@@ -2,12 +2,15 @@ import MapLibreGL from '@maplibre/maplibre-react-native';
 import type { Feature, Point } from 'geojson';
 import { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
+import Svg, { G, Polygon } from 'react-native-svg';
 import { type Coordinate, useRouteStore } from '../store/routeStore';
 
 interface Props {
 	id: string;
 	coordinate: Coordinate;
 	afterIndex: number;
+	/** Compass bearing in degrees (0 = north, 90 = east) for this segment's direction */
+	segmentBearing: number;
 	onDragMove?: (coord: Coordinate) => void;
 	onDragFinish?: () => void;
 }
@@ -16,6 +19,7 @@ export default function MidpointMarker({
 	id,
 	coordinate,
 	afterIndex,
+	segmentBearing,
 	onDragMove,
 	onDragFinish,
 }: Props) {
@@ -46,23 +50,29 @@ export default function MidpointMarker({
 			onDrag={handleDrag}
 			onDragEnd={handleDragEnd}
 		>
-			<View style={styles.marker} collapsable={false} />
+			<View style={styles.marker} collapsable={false}>
+				<Svg width={20} height={20} viewBox="0 0 20 20">
+					<G rotation={segmentBearing} originX={10} originY={10}>
+						<Polygon
+							points="10,0 19,15 1,15"
+							fill="#94a3b8"
+							stroke="#fff"
+							strokeWidth={1.5}
+							strokeLinejoin="round"
+						/>
+					</G>
+				</Svg>
+			</View>
 		</MapLibreGL.PointAnnotation>
 	);
 }
 
 const styles = StyleSheet.create({
 	marker: {
-		width: 12,
-		height: 12,
-		borderRadius: 6,
-		backgroundColor: 'rgba(255,255,255,0.6)',
-		borderWidth: 1.5,
-		borderColor: '#94a3b8',
-		shadowColor: '#000',
-		shadowOffset: { width: 0, height: 1 },
-		shadowOpacity: 0.2,
-		shadowRadius: 2,
-		elevation: 3,
+		width: 20,
+		height: 20,
+		alignItems: 'center',
+		justifyContent: 'center',
+		elevation: 8,
 	},
 });
