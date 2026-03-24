@@ -36,6 +36,8 @@ interface RouteState {
 	isLoading: boolean;
 	/** Set by ElevationProfile on tap; watched by RouteMap to fly camera */
 	focusCoordinate: [number, number] | null;
+	/** Persists after camera fly; used to render a dot marker on the map */
+	elevationMarkerCoord: [number, number] | null;
 	/** ID of the route currently loaded in editing mode; null otherwise */
 	activeRouteId: number | null;
 	/** Current route line color (hex). Used for new routes and when editing. */
@@ -65,6 +67,7 @@ interface RouteActions {
 	setIsSnapping: (value: boolean) => void;
 	setIsLoading: (value: boolean) => void;
 	setFocusCoordinate: (coord: [number, number] | null) => void;
+	setElevationMarkerCoord: (coord: [number, number] | null) => void;
 	setRouteColor: (color: string) => void;
 	setEditingRouteName: (name: string) => void;
 	/** Clears only the active editing state (waypoints, route, elevation, stats).
@@ -98,6 +101,7 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 	isSnapping: true,
 	isLoading: false,
 	focusCoordinate: null,
+	elevationMarkerCoord: null,
 	activeRouteId: null,
 	routeColor: DEFAULT_ROUTE_COLOR,
 	editingRouteName: '',
@@ -145,6 +149,7 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 	setIsSnapping: (isSnapping) => set({ isSnapping }),
 	setIsLoading: (isLoading) => set({ isLoading }),
 	setFocusCoordinate: (focusCoordinate) => set({ focusCoordinate }),
+	setElevationMarkerCoord: (elevationMarkerCoord) => set({ elevationMarkerCoord }),
 
 	clearAll: () =>
 		set({
@@ -153,6 +158,7 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 			elevationData: [],
 			routeStats: null,
 			focusCoordinate: null,
+			elevationMarkerCoord: null,
 			activeRouteId: null,
 			routeColor: DEFAULT_ROUTE_COLOR,
 			editingRouteName: '',
@@ -179,6 +185,7 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 			editingRouteName: saved.name,
 			elevationData: [],
 			focusCoordinate: null,
+			elevationMarkerCoord: null,
 		});
 	},
 

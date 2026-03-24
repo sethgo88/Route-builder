@@ -5,7 +5,7 @@ import BottomSheet, {
 import MapLibreGL, { type MapViewRef } from '@maplibre/maplibre-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Save } from 'lucide-react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -67,7 +67,7 @@ interface Props {
 
 export default function ControlsPanel({ mapViewRef }: Props) {
 	const queryClient = useQueryClient();
-	const snapPoints = useMemo(() => ['18%', '65%'], []);
+	const snapPoints = useMemo(() => ['24%', '65%'], []);
 	const bottomSheetRef = useRef<BottomSheet>(null);
 	const { width } = useWindowDimensions();
 
@@ -114,13 +114,9 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 		setSavedRoutes(listRoutes());
 	}, []);
 
-	// Expand sheet when entering creating/editing mode
+	// Always collapse sheet when entering creating, editing, or view mode
 	useEffect(() => {
-		if (isCreating || isEditing) {
-			bottomSheetRef.current?.snapToIndex(1);
-		} else {
-			bottomSheetRef.current?.snapToIndex(0);
-		}
+		bottomSheetRef.current?.snapToIndex(0);
 	}, [isCreating, isEditing]);
 
 	// ── GPX Export ─────────────────────────────────────────────────────────────
@@ -346,7 +342,6 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 	]);
 
 	const hasRoute = route !== null;
-	const hasWaypoints = waypoints.length > 0;
 
 	return (
 		<BottomSheet
@@ -355,6 +350,7 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 			index={0}
 			backgroundStyle={styles.sheet}
 			handleIndicatorStyle={styles.handle}
+			enableContentPanningGesture={false}
 		>
 			{/* Creating mode: action bar replaces the handle area */}
 			{isCreating && <RouteActionBar onRouteSaved={refreshRoutes} />}
@@ -398,46 +394,41 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 					</>
 				)}
 
-				{/* ── Creating mode: elevation profile + stats ──────────────── */}
-				{isCreating && (
-					<>
-						{!hasWaypoints && (
-							<Text style={styles.hint}>
-								Long-press the map to add waypoints
-							</Text>
-						)}
-						{hasRoute && <ElevationProfile width={width} />}
-						{routeStats && !hasRoute && (
-							<View style={styles.statsRow}>
-								<Text style={styles.statLabel}>
-									{routeStats.distanceKm.toFixed(2)} km
-								</Text>
-							</View>
-						)}
-					</>
-				)}
+				{/* ── Creating mode: elevation profile ──────────────────────── */}
+				{isCreating && <ElevationProfile width={width} />}
 
 				{/* ── Editing mode: full route info panel ───────────────────── */}
 				{isEditing && (
 					<View style={styles.editPanel}>
-						{/* Back button */}
-						<TouchableOpacity
-							style={styles.backButton}
-							onPress={handleEditBack}
-						>
-							<ArrowLeft size={18} color="#374151" />
-							<Text style={styles.backLabel}>Back</Text>
-						</TouchableOpacity>
+						{/* Header row: back + title + save */}
+						<View style={styles.editHeader}>
+							<TouchableOpacity
+								style={styles.backButton}
+								onPress={handleEditBack}
+							>
+								<ArrowLeft size={18} color="#374151" />
+							</TouchableOpacity>
 
-						{/* Title input */}
-						<BottomSheetTextInput
-							style={styles.titleInput}
-							value={editingRouteName}
-							onChangeText={setEditingRouteName}
-							placeholder="Route name"
-							placeholderTextColor="#9ca3af"
-							returnKeyType="done"
-						/>
+							<BottomSheetTextInput
+								style={styles.titleInput}
+								value={editingRouteName}
+								onChangeText={setEditingRouteName}
+								placeholder="Route name"
+								placeholderTextColor="#9ca3af"
+								returnKeyType="done"
+							/>
+
+							<TouchableOpacity
+								style={[styles.saveIconButton, !hasRoute && styles.saveIconDisabled]}
+								onPress={handleEditSave}
+								disabled={!hasRoute}
+							>
+								<Save size={18} color={hasRoute ? '#fff' : '#9ca3af'} />
+							</TouchableOpacity>
+						</View>
+
+						{/* Elevation profile — subtract editPanel's 16px horizontal padding on each side */}
+						<ElevationProfile width={width - 32} />
 
 						{/* Color picker */}
 						<Text style={styles.sectionTitle}>Line colour</Text>
@@ -457,9 +448,6 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 							))}
 						</View>
 
-						{/* Elevation profile */}
-						{hasRoute && <ElevationProfile width={width} />}
-
 						{/* Action buttons */}
 						<View style={styles.editActions}>
 							<ActionButton
@@ -469,7 +457,6 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 							/>
 						</View>
 						<View style={styles.editActions}>
-							<ActionButton label="Save" onPress={handleEditSave} />
 							<ActionButton
 								label="Delete"
 								onPress={handleEditDelete}
@@ -657,45 +644,40 @@ const styles = StyleSheet.create({
 		color: '#6b7280',
 		marginTop: 1,
 	},
-	statsRow: {
-		paddingHorizontal: 16,
-		paddingTop: 8,
-	},
-	statLabel: {
-		fontSize: 14,
-		fontWeight: '600',
-		color: '#374151',
-	},
 	// Edit panel
 	editPanel: {
 		paddingHorizontal: 16,
 		paddingTop: 8,
-		gap: 12,
+		gap: 2,
 	},
-	backButton: {
+	editHeader: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		gap: 4,
-		alignSelf: 'flex-start',
-		paddingVertical: 6,
-		paddingHorizontal: 10,
+		gap: 8,
+	},
+	backButton: {
+		padding: 8,
 		borderRadius: 8,
 		backgroundColor: '#f3f4f6',
 	},
-	backLabel: {
-		fontSize: 14,
-		fontWeight: '600',
-		color: '#374151',
-	},
 	titleInput: {
+		flex: 1,
 		borderWidth: 1,
 		borderColor: '#d1d5db',
 		borderRadius: 8,
 		paddingHorizontal: 12,
-		paddingVertical: 10,
+		paddingVertical: 3,
 		fontSize: 15,
 		color: '#111827',
 		backgroundColor: '#fff',
+	},
+	saveIconButton: {
+		padding: 8,
+		borderRadius: 8,
+		backgroundColor: '#2563eb',
+	},
+	saveIconDisabled: {
+		backgroundColor: '#f3f4f6',
 	},
 	colorPalette: {
 		flexDirection: 'row',

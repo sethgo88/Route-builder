@@ -119,7 +119,7 @@ export default function RoutePolyline() {
 							<MapLibreGL.LineLayer
 								id={`${unsnappedId}-line`}
 								style={DOTTED_LINE}
-								layerIndex={11}
+								aboveLayerID="stadia-raster"
 							/>
 						</MapLibreGL.ShapeSource>
 					);
@@ -135,7 +135,7 @@ export default function RoutePolyline() {
 						<MapLibreGL.LineLayer
 							id={`${segId}-line`}
 							style={solidLine}
-							layerIndex={11}
+							aboveLayerID="stadia-raster"
 						/>
 					</MapLibreGL.ShapeSource>
 				);
@@ -146,7 +146,7 @@ export default function RoutePolyline() {
 					<MapLibreGL.LineLayer
 						id="drag-preview-line"
 						style={DOTTED_LINE}
-						layerIndex={12}
+						aboveLayerID="stadia-raster"
 					/>
 				</MapLibreGL.ShapeSource>
 			)}
