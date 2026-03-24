@@ -12,7 +12,14 @@ import type {
 	LineString,
 	Point,
 } from 'geojson';
-import { Layers2, Locate, Plus, Redo2, Trash2, Undo2 } from 'lucide-react-native';
+import {
+	Layers2,
+	Locate,
+	Plus,
+	Redo2,
+	Trash2,
+	Undo2,
+} from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	ActivityIndicator,

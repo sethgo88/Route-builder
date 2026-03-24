@@ -16,6 +16,11 @@ expo run:android   # dev build on device/emulator
 expo prebuild --clean  # regenerate native Android project
 ```
 
+Run both before committing:
+```bash
+pnpm lint && pnpm typecheck
+```
+
 ## Stack
 React Native 0.76, Expo 52 (bare workflow), MapLibre GL (`@maplibre/maplibre-react-native`), Zustand, TanStack Query, Zod v4, `react-native-svg`, `lucide-react-native`, `fast-xml-parser`, Stadia Maps (tiles + Valhalla routing)
 
