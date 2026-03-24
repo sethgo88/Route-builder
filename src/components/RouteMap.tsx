@@ -11,7 +11,7 @@ import type {
 	LineString,
 	Point,
 } from 'geojson';
-import { Layers2, Locate, Plus, Trash2, Undo2 } from 'lucide-react-native';
+import { Layers2, Locate, Plus, Redo2, Trash2, Undo2 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
 	ActivityIndicator,
@@ -50,7 +50,10 @@ export default function RouteMap() {
 	const route = useRouteStore((s) => s.route);
 	const isLoading = useRouteStore((s) => s.isLoading);
 	const addWaypoint = useRouteStore((s) => s.addWaypoint);
-	const undoLastWaypoint = useRouteStore((s) => s.undoLastWaypoint);
+	const undo = useRouteStore((s) => s.undo);
+	const redo = useRouteStore((s) => s.redo);
+	const canUndo = useRouteStore((s) => s.canUndo);
+	const canRedo = useRouteStore((s) => s.canRedo);
 	const clearAll = useRouteStore((s) => s.clearAll);
 	const setEditingMode = useRouteStore((s) => s.setEditingMode);
 	const loadRouteForEditing = useRouteStore((s) => s.loadRouteForEditing);
@@ -385,10 +388,17 @@ export default function RouteMap() {
 					<>
 						<TouchableOpacity
 							style={styles.layerButton}
-							onPress={undoLastWaypoint}
-							disabled={!hasWaypoints}
+							onPress={undo}
+							disabled={!canUndo()}
 						>
-							<Undo2 size={20} color={hasWaypoints ? '#374151' : '#9ca3af'} />
+							<Undo2 size={20} color={canUndo() ? '#374151' : '#9ca3af'} />
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={styles.layerButton}
+							onPress={redo}
+							disabled={!canRedo()}
+						>
+							<Redo2 size={20} color={canRedo() ? '#374151' : '#9ca3af'} />
 						</TouchableOpacity>
 						<TouchableOpacity
 							style={styles.layerButton}

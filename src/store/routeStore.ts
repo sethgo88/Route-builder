@@ -26,6 +26,10 @@ export const DEFAULT_ROUTE_COLOR = '#3b82f6';
 interface RouteState {
 	editingMode: EditingMode;
 	waypoints: Waypoint[];
+	/** Snapshots of waypoints before each mutating action — supports multi-step undo */
+	history: Waypoint[][];
+	/** Snapshots pushed onto the future stack when undoing — supports redo */
+	future: Waypoint[][];
 	route: Feature<LineString> | null;
 	/** [distanceKm, elevationM] pairs for the elevation profile chart */
 	elevationData: [number, number][];
@@ -60,7 +64,10 @@ interface RouteActions {
 	insertWaypoint: (afterIndex: number, coord: Coordinate) => void;
 	moveWaypoint: (id: string, coord: Coordinate) => void;
 	removeWaypoint: (id: string) => void;
-	undoLastWaypoint: () => void;
+	undo: () => void;
+	redo: () => void;
+	canUndo: () => boolean;
+	canRedo: () => boolean;
 	setRoute: (route: Feature<LineString> | null) => void;
 	setElevationData: (data: [number, number][]) => void;
 	setRouteStats: (stats: RouteStats | null) => void;
@@ -92,9 +99,11 @@ function makeId(): string {
 	});
 }
 
-export const useRouteStore = create<RouteState & RouteActions>((set) => ({
+export const useRouteStore = create<RouteState & RouteActions>((set, get) => ({
 	editingMode: 'view',
 	waypoints: [],
+	history: [],
+	future: [],
 	route: null,
 	elevationData: [],
 	routeStats: null,
@@ -116,6 +125,8 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 
 	addWaypoint: (coord) =>
 		set((state) => ({
+			history: [...state.history, state.waypoints],
+			future: [],
 			waypoints: [...state.waypoints, { id: makeId(), coordinate: coord }],
 		})),
 
@@ -123,11 +134,13 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 		set((state) => {
 			const wps = [...state.waypoints];
 			wps.splice(afterIndex + 1, 0, { id: makeId(), coordinate: coord });
-			return { waypoints: wps };
+			return { history: [...state.history, state.waypoints], future: [], waypoints: wps };
 		}),
 
 	moveWaypoint: (id, coord) =>
 		set((state) => ({
+			history: [...state.history, state.waypoints],
+			future: [],
 			waypoints: state.waypoints.map((wp) =>
 				wp.id === id ? { ...wp, coordinate: coord } : wp,
 			),
@@ -135,13 +148,35 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 
 	removeWaypoint: (id) =>
 		set((state) => ({
+			history: [...state.history, state.waypoints],
+			future: [],
 			waypoints: state.waypoints.filter((wp) => wp.id !== id),
 		})),
 
-	undoLastWaypoint: () =>
-		set((state) => ({
-			waypoints: state.waypoints.slice(0, -1),
-		})),
+	undo: () =>
+		set((state) => {
+			if (state.history.length === 0) return state;
+			const previous = state.history[state.history.length - 1];
+			return {
+				waypoints: previous,
+				history: state.history.slice(0, -1),
+				future: [state.waypoints, ...state.future],
+			};
+		}),
+
+	redo: () =>
+		set((state) => {
+			if (state.future.length === 0) return state;
+			const [next, ...remaining] = state.future;
+			return {
+				waypoints: next,
+				history: [...state.history, state.waypoints],
+				future: remaining,
+			};
+		}),
+
+	canUndo: () => get().history.length > 0,
+	canRedo: () => get().future.length > 0,
 
 	setRoute: (route) => set({ route, pendingDragSegments: [] }),
 	setElevationData: (elevationData) => set({ elevationData }),
@@ -155,6 +190,8 @@ export const useRouteStore = create<RouteState & RouteActions>((set) => ({
 	clearAll: () =>
 		set({
 			waypoints: [],
+			history: [],
+			future: [],
 			route: null,
 			elevationData: [],
 			routeStats: null,
