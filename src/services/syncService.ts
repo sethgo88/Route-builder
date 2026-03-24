@@ -11,6 +11,7 @@ import {
 	getSettingRow,
 	insertRemoteRoute,
 	listLocalRemoteIds,
+	listUnsyncedRouteIds,
 	markRouteSynced,
 	setSetting,
 } from './db';
@@ -73,6 +74,16 @@ export async function deleteRouteInCloud(remoteId: string): Promise<void> {
 	} catch (err) {
 		if (__DEV__) console.warn('[sync] deleteRouteInCloud exception:', err);
 	}
+}
+
+/**
+ * Push all local routes that have not yet been synced to Supabase.
+ * Returns the number of routes pushed successfully.
+ */
+export async function syncAllPending(): Promise<number> {
+	const ids = listUnsyncedRouteIds();
+	await Promise.all(ids.map((id) => pushRoute(id)));
+	return ids.length;
 }
 
 /**

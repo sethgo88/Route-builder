@@ -255,6 +255,24 @@ export function markRouteSynced(localId: number, remoteId: string): void {
 	db.runSync('UPDATE routes SET remote_id = ? WHERE id = ?', remoteId, localId);
 }
 
+/** Count of local routes not yet pushed to Supabase. */
+export function countUnsyncedRoutes(): number {
+	const db = getDb();
+	const row = db.getFirstSync<{ n: number }>(
+		'SELECT COUNT(*) AS n FROM routes WHERE remote_id IS NULL AND deleted_at IS NULL',
+	);
+	return row?.n ?? 0;
+}
+
+/** Local IDs of routes not yet pushed to Supabase. */
+export function listUnsyncedRouteIds(): number[] {
+	const db = getDb();
+	const rows = db.getAllSync<{ id: number }>(
+		'SELECT id FROM routes WHERE remote_id IS NULL AND deleted_at IS NULL',
+	);
+	return rows.map((r) => r.id);
+}
+
 /** All remote_ids that already exist locally (for dedup during pull). */
 export function listLocalRemoteIds(): string[] {
 	const db = getDb();

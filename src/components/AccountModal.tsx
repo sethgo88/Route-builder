@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
 	ActivityIndicator,
 	Alert,
@@ -11,8 +11,13 @@ import {
 	TouchableOpacity,
 	View,
 } from 'react-native';
-import { signIn, signOut } from '../services/authService';
-import { pullMissingRoutes, pullSettings } from '../services/syncService';
+import { signIn, signOut, signUp } from '../services/authService';
+import { countUnsyncedRoutes } from '../services/db';
+import {
+	pullMissingRoutes,
+	pullSettings,
+	syncAllPending,
+} from '../services/syncService';
 import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settingsStore';
 import type { UnitSystem } from '../utils/units';
@@ -32,9 +37,32 @@ export default function AccountModal({
 	const user = useAuthStore((s) => s.user);
 	const setUnitSystem = useSettingsStore((s) => s.setUnitSystem);
 
+	const [mode, setMode] = useState<'signin' | 'register'>('signin');
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
+	const [confirmPassword, setConfirmPassword] = useState('');
 	const [isBusy, setIsBusy] = useState(false);
+	const [isSyncing, setIsSyncing] = useState(false);
+	const [unsyncedCount, setUnsyncedCount] = useState(0);
+
+	// Refresh unsynced count whenever the sheet opens while signed in
+	useEffect(() => {
+		if (visible && user) {
+			setUnsyncedCount(countUnsyncedRoutes());
+		}
+	}, [visible, user]);
+
+	const switchMode = (next: 'signin' | 'register') => {
+		setMode(next);
+		setEmail('');
+		setPassword('');
+		setConfirmPassword('');
+	};
+
+	const handleClose = () => {
+		switchMode('signin');
+		onClose();
+	};
 
 	const handleSignIn = async () => {
 		if (!email.trim() || !password) {
@@ -66,6 +94,38 @@ export default function AccountModal({
 		}
 	};
 
+	const handleRegister = async () => {
+		if (!email.trim() || !password || !confirmPassword) {
+			Alert.alert('Missing fields', 'Please fill in all fields.');
+			return;
+		}
+		if (password !== confirmPassword) {
+			Alert.alert('Password mismatch', 'Passwords do not match.');
+			return;
+		}
+		setIsBusy(true);
+		try {
+			const result = await signUp(email.trim(), password);
+			if (result.error) {
+				Alert.alert('Registration failed', result.error);
+				return;
+			}
+			onClose();
+		} finally {
+			setIsBusy(false);
+		}
+	};
+
+	const handleSyncNow = async () => {
+		setIsSyncing(true);
+		try {
+			await syncAllPending();
+			setUnsyncedCount(countUnsyncedRoutes());
+		} finally {
+			setIsSyncing(false);
+		}
+	};
+
 	const handleSignOut = async () => {
 		setIsBusy(true);
 		try {
@@ -81,23 +141,48 @@ export default function AccountModal({
 			visible={visible}
 			animationType="slide"
 			transparent
-			onRequestClose={onClose}
+			onRequestClose={handleClose}
 		>
 			<KeyboardAvoidingView
 				style={styles.overlay}
 				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
 			>
 				<View style={styles.sheet}>
-					<Text style={styles.title}>Account</Text>
+					<Text style={styles.title}>
+						{user
+							? 'Account'
+							: mode === 'signin'
+								? 'Sign In'
+								: 'Create Account'}
+					</Text>
 
 					{user ? (
 						// ── Signed-in state ──────────────────────────────────────
 						<>
 							<Text style={styles.emailLabel}>Signed in as</Text>
 							<Text style={styles.email}>{user.email}</Text>
-							<Text style={styles.hint}>
-								Routes are backed up automatically when you save them.
-							</Text>
+
+							<View style={styles.syncRow}>
+								<Text style={styles.syncStatus}>
+									{unsyncedCount === 0
+										? 'All routes backed up'
+										: `${unsyncedCount} route${unsyncedCount === 1 ? '' : 's'} not yet synced`}
+								</Text>
+								{unsyncedCount > 0 && (
+									<TouchableOpacity
+										style={styles.syncButton}
+										onPress={handleSyncNow}
+										disabled={isSyncing}
+									>
+										{isSyncing ? (
+											<ActivityIndicator color="#2563eb" size="small" />
+										) : (
+											<Text style={styles.syncButtonText}>Sync now</Text>
+										)}
+									</TouchableOpacity>
+								)}
+							</View>
+
 							<TouchableOpacity
 								style={[styles.button, styles.destructive]}
 								onPress={handleSignOut}
@@ -114,8 +199,9 @@ export default function AccountModal({
 						// ── Signed-out state ─────────────────────────────────────
 						<>
 							<Text style={styles.hint}>
-								Sign in to back up your routes to the cloud and sync across
-								devices.
+								{mode === 'signin'
+									? 'Sign in to back up your routes to the cloud and sync across devices.'
+									: 'Create an account to back up and sync your routes.'}
 							</Text>
 							<TextInput
 								style={styles.input}
@@ -136,23 +222,49 @@ export default function AccountModal({
 								onChangeText={setPassword}
 								editable={!isBusy}
 							/>
+							{mode === 'register' && (
+								<TextInput
+									style={styles.input}
+									placeholder="Confirm Password"
+									placeholderTextColor="#9ca3af"
+									secureTextEntry
+									value={confirmPassword}
+									onChangeText={setConfirmPassword}
+									editable={!isBusy}
+								/>
+							)}
 							<TouchableOpacity
 								style={styles.button}
-								onPress={handleSignIn}
+								onPress={mode === 'signin' ? handleSignIn : handleRegister}
 								disabled={isBusy}
 							>
 								{isBusy ? (
 									<ActivityIndicator color="#fff" />
 								) : (
-									<Text style={styles.buttonText}>Sign in</Text>
+									<Text style={styles.buttonText}>
+										{mode === 'signin' ? 'Sign in' : 'Create Account'}
+									</Text>
 								)}
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={styles.toggleButton}
+								onPress={() =>
+									switchMode(mode === 'signin' ? 'register' : 'signin')
+								}
+								disabled={isBusy}
+							>
+								<Text style={styles.toggleText}>
+									{mode === 'signin'
+										? "Don't have an account? Create one"
+										: 'Already have an account? Sign in'}
+								</Text>
 							</TouchableOpacity>
 						</>
 					)}
 
 					<TouchableOpacity
 						style={styles.cancelButton}
-						onPress={onClose}
+						onPress={handleClose}
 						disabled={isBusy}
 					>
 						<Text style={styles.cancelText}>Cancel</Text>
@@ -229,5 +341,42 @@ const styles = StyleSheet.create({
 	cancelText: {
 		fontSize: 14,
 		color: '#6b7280',
+	},
+	toggleButton: {
+		alignItems: 'center',
+		paddingVertical: 4,
+	},
+	toggleText: {
+		fontSize: 13,
+		color: '#2563eb',
+	},
+	syncRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		paddingVertical: 8,
+		paddingHorizontal: 12,
+		backgroundColor: '#f9fafb',
+		borderRadius: 8,
+	},
+	syncStatus: {
+		fontSize: 13,
+		color: '#374151',
+		flex: 1,
+	},
+	syncButton: {
+		marginLeft: 12,
+		paddingHorizontal: 12,
+		paddingVertical: 6,
+		borderRadius: 6,
+		borderWidth: 1,
+		borderColor: '#2563eb',
+		minWidth: 80,
+		alignItems: 'center',
+	},
+	syncButtonText: {
+		fontSize: 13,
+		color: '#2563eb',
+		fontWeight: '600',
 	},
 });

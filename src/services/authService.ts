@@ -23,6 +23,19 @@ export async function signIn(
 	};
 }
 
+/** Register a new user with email + password. */
+export async function signUp(
+	email: string,
+	password: string,
+): Promise<AuthResult> {
+	const { data, error } = await supabase.auth.signUp({ email, password });
+	return {
+		user: data.user,
+		session: data.session,
+		error: error?.message ?? null,
+	};
+}
+
 /** Sign out and clear the persisted session. */
 export async function signOut(): Promise<void> {
 	await supabase.auth.signOut();
