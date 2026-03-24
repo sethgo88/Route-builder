@@ -134,7 +134,11 @@ export const useRouteStore = create<RouteState & RouteActions>((set, get) => ({
 		set((state) => {
 			const wps = [...state.waypoints];
 			wps.splice(afterIndex + 1, 0, { id: makeId(), coordinate: coord });
-			return { history: [...state.history, state.waypoints], future: [], waypoints: wps };
+			return {
+				history: [...state.history, state.waypoints],
+				future: [],
+				waypoints: wps,
+			};
 		}),
 
 	moveWaypoint: (id, coord) =>

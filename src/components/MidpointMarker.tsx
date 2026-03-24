@@ -11,6 +11,7 @@ interface Props {
 	afterIndex: number;
 	/** Compass bearing in degrees (0 = north, 90 = east) for this segment's direction */
 	segmentBearing: number;
+	mapMoving: boolean;
 	onDragMove?: (coord: Coordinate) => void;
 	onDragFinish?: () => void;
 }
@@ -20,6 +21,7 @@ export default function MidpointMarker({
 	coordinate,
 	afterIndex,
 	segmentBearing,
+	mapMoving,
 	onDragMove,
 	onDragFinish,
 }: Props) {
@@ -46,9 +48,9 @@ export default function MidpointMarker({
 		<MapLibreGL.PointAnnotation
 			id={id}
 			coordinate={[coordinate.longitude, coordinate.latitude]}
-			draggable
-			onDrag={handleDrag}
-			onDragEnd={handleDragEnd}
+			draggable={!mapMoving}
+			onDrag={mapMoving ? undefined : handleDrag}
+			onDragEnd={mapMoving ? undefined : handleDragEnd}
 		>
 			<View style={styles.marker} collapsable={false}>
 				<Svg width={20} height={20} viewBox="0 0 20 20">

@@ -15,6 +15,7 @@ interface Props {
 	total: number;
 	/** Compass bearing in degrees (0 = north, 90 = east) for the route direction at this waypoint */
 	routeBearing: number;
+	mapMoving: boolean;
 	onDragMove?: (coord: Coordinate) => void;
 	onDragFinish?: () => void;
 }
@@ -30,6 +31,7 @@ export default function WaypointMarker({
 	index,
 	total,
 	routeBearing,
+	mapMoving,
 	onDragMove,
 	onDragFinish,
 }: Props) {
@@ -60,12 +62,10 @@ export default function WaypointMarker({
 		<MapLibreGL.PointAnnotation
 			id={`waypoint-${waypoint.id}`}
 			coordinate={[waypoint.coordinate.longitude, waypoint.coordinate.latitude]}
-			draggable
-			onDrag={handleDrag}
-			onDragEnd={handleDragEnd}
-			onSelected={() => {
-				removeWaypoint(waypoint.id);
-			}}
+			draggable={!mapMoving}
+			onDrag={mapMoving ? undefined : handleDrag}
+			onDragEnd={mapMoving ? undefined : handleDragEnd}
+			onSelected={mapMoving ? undefined : () => removeWaypoint(waypoint.id)}
 		>
 			{isEndpoint ? (
 				<View
