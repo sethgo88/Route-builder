@@ -2,6 +2,7 @@ import MapLibreGL, {
 	type CameraRef,
 	type MapViewRef,
 	type OnPressEvent,
+	type RegionPayload,
 } from '@maplibre/maplibre-react-native';
 import * as Location from 'expo-location';
 import type {
@@ -94,6 +95,9 @@ export default function RouteMap() {
 	const mapViewRef = useRef<MapViewRef>(null);
 	const cameraRef = useRef<CameraRef>(null);
 	const hasCenteredOnUser = useRef(false);
+	const isMapMovingRef = useRef(false);
+	const mapMovingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [isMapMoving, setIsMapMoving] = useState(false);
 
 	const [userLocation, setUserLocation] = useState<[number, number] | null>(
 		null,
@@ -204,6 +208,32 @@ export default function RouteMap() {
 		]);
 	}, [clearAll]);
 
+	const handleRegionIsChanging = useCallback(
+		(feature: Feature<Point, RegionPayload>) => {
+			if (!feature.properties.isUserInteraction) return;
+			if (mapMovingTimerRef.current) {
+				clearTimeout(mapMovingTimerRef.current);
+				mapMovingTimerRef.current = null;
+			}
+			if (!isMapMovingRef.current) {
+				isMapMovingRef.current = true;
+				setIsMapMoving(true);
+			}
+		},
+		[],
+	);
+
+	const handleRegionDidChange = useCallback(
+		(feature: Feature<Point, RegionPayload>) => {
+			if (!feature.properties.isUserInteraction) return;
+			mapMovingTimerRef.current = setTimeout(() => {
+				isMapMovingRef.current = false;
+				setIsMapMoving(false);
+			}, 150);
+		},
+		[],
+	);
+
 	const handleLongPress = useCallback(
 		(feature: Feature<Geometry>) => {
 			if (!isActive) return;
@@ -222,6 +252,8 @@ export default function RouteMap() {
 				mapStyle={activeStyle.style}
 				onLongPress={handleLongPress}
 				onPress={() => setPreviewRoute(null)}
+				onRegionIsChanging={handleRegionIsChanging}
+				onRegionDidChange={handleRegionDidChange}
 				logoEnabled={false}
 				attributionEnabled
 				attributionPosition={{ bottom: 8, right: 8 }}
@@ -287,6 +319,7 @@ export default function RouteMap() {
 							index={index}
 							total={waypoints.length}
 							routeBearing={waypointBearings[index] ?? 0}
+							mapMoving={isMapMoving}
 							onDragMove={(coord) => {
 								const neighbors: Coordinate[] = [];
 								if (index > 0) neighbors.push(waypoints[index - 1].coordinate);
@@ -317,6 +350,7 @@ export default function RouteMap() {
 								coordinate={mid.coordinate}
 								afterIndex={index}
 								segmentBearing={mid.bearing}
+								mapMoving={isMapMoving}
 								onDragMove={(coord) => {
 									setDragPreview(coord, [wp.coordinate, next.coordinate]);
 									setDraggingIndices([index, index + 1]);
