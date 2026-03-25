@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Alert } from 'react-native';
-import { fetchRoute } from '../services/routing';
+import { fetchRouteSegmented } from '../services/routing';
 import { useRouteStore } from '../store/routeStore';
 import { useDebounce } from './useDebounce';
 
@@ -14,28 +14,19 @@ const DEBOUNCE_MS = 400;
  */
 export function useRouting(): void {
 	const waypoints = useRouteStore((s) => s.waypoints);
-	const isSnapping = useRouteStore((s) => s.isSnapping);
 	const setRoute = useRouteStore((s) => s.setRoute);
 	const setElevationData = useRouteStore((s) => s.setElevationData);
 	const setRouteStats = useRouteStore((s) => s.setRouteStats);
 	const setIsLoading = useRouteStore((s) => s.setIsLoading);
 	const setPendingDragSegments = useRouteStore((s) => s.setPendingDragSegments);
 
-	// Debounce both inputs so drag events don't fire a request on every pixel
+	// Debounce waypoints so drag events don't fire a request on every pixel.
+	// snapAfter is embedded in each waypoint, so changing snap also invalidates the key.
 	const debouncedWaypoints = useDebounce(waypoints, DEBOUNCE_MS);
-	const debouncedSnapping = useDebounce(isSnapping, DEBOUNCE_MS);
 
 	const { data, isFetching, error } = useQuery({
-		queryKey: [
-			'route',
-			debouncedWaypoints.map((wp) => wp.coordinate),
-			debouncedSnapping,
-		],
-		queryFn: () =>
-			fetchRoute(
-				debouncedWaypoints.map((wp) => wp.coordinate),
-				debouncedSnapping,
-			),
+		queryKey: ['route', debouncedWaypoints],
+		queryFn: () => fetchRouteSegmented(debouncedWaypoints),
 		enabled: debouncedWaypoints.length >= 2,
 		staleTime: 5 * 60 * 1000,
 	});

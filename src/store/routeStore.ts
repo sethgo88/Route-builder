@@ -10,6 +10,9 @@ export interface Coordinate {
 export interface Waypoint {
 	id: string;
 	coordinate: Coordinate;
+	/** Snap setting for the segment FROM the previous waypoint TO this one.
+	 *  Stamped at add-time from isSnapping. true = trail route; false = straight line. */
+	snapAfter: boolean;
 }
 
 export interface RouteStats {
@@ -34,8 +37,7 @@ interface RouteState {
 	/** [distanceKm, elevationM] pairs for the elevation profile chart */
 	elevationData: [number, number][];
 	routeStats: RouteStats | null;
-	/** When true, routing uses Valhalla use_trails: 1.0 (prefers trails).
-	 *  When false, uses use_trails: 0.5 (standard pedestrian). */
+	/** Snap setting applied to each new waypoint added. Stored as snapAfter on the waypoint. */
 	isSnapping: boolean;
 	isLoading: boolean;
 	/** Set by ElevationProfile on tap; watched by RouteMap to fly camera */
@@ -127,13 +129,20 @@ export const useRouteStore = create<RouteState & RouteActions>((set, get) => ({
 		set((state) => ({
 			history: [...state.history, state.waypoints],
 			future: [],
-			waypoints: [...state.waypoints, { id: makeId(), coordinate: coord }],
+			waypoints: [
+				...state.waypoints,
+				{ id: makeId(), coordinate: coord, snapAfter: state.isSnapping },
+			],
 		})),
 
 	insertWaypoint: (afterIndex, coord) =>
 		set((state) => {
 			const wps = [...state.waypoints];
-			wps.splice(afterIndex + 1, 0, { id: makeId(), coordinate: coord });
+			wps.splice(afterIndex + 1, 0, {
+				id: makeId(),
+				coordinate: coord,
+				snapAfter: state.isSnapping,
+			});
 			return {
 				history: [...state.history, state.waypoints],
 				future: [],
@@ -208,7 +217,11 @@ export const useRouteStore = create<RouteState & RouteActions>((set, get) => ({
 
 	loadWaypoints: (coords) =>
 		set({
-			waypoints: coords.map((coord) => ({ id: makeId(), coordinate: coord })),
+			waypoints: coords.map((coord) => ({
+				id: makeId(),
+				coordinate: coord,
+				snapAfter: false,
+			})),
 			route: null,
 			elevationData: [],
 			routeStats: null,
@@ -220,7 +233,11 @@ export const useRouteStore = create<RouteState & RouteActions>((set, get) => ({
 		set({
 			activeRouteId: id,
 			editingMode: 'editing',
-			waypoints: saved.waypoints,
+			// Default snapAfter to true for waypoints saved before this field existed
+			waypoints: saved.waypoints.map((wp) => ({
+				...wp,
+				snapAfter: wp.snapAfter ?? true,
+			})),
 			route: saved.geometry,
 			routeStats: saved.stats,
 			routeColor: saved.color,

@@ -13,7 +13,6 @@ import {
 	ActivityIndicator,
 	Alert,
 	StyleSheet,
-	Switch,
 	Text,
 	TouchableOpacity,
 	useWindowDimensions,
@@ -77,8 +76,6 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 	const waypoints = useRouteStore((s) => s.waypoints);
 	const route = useRouteStore((s) => s.route);
 	const routeStats = useRouteStore((s) => s.routeStats);
-	const isSnapping = useRouteStore((s) => s.isSnapping);
-	const setIsSnapping = useRouteStore((s) => s.setIsSnapping);
 	const loadWaypoints = useRouteStore((s) => s.loadWaypoints);
 	const activeRouteId = useRouteStore((s) => s.activeRouteId);
 	const routeColor = useRouteStore((s) => s.routeColor);
@@ -488,16 +485,6 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 				{/* ── Controls: visible in view + creating modes only ───────── */}
 				{!isEditing && (
 					<View style={styles.controls}>
-						{/* Snap to trails toggle */}
-						<View style={styles.row}>
-							<Text style={styles.controlLabel}>Snap to trails</Text>
-							<Switch
-								value={isSnapping}
-								onValueChange={setIsSnapping}
-								trackColor={{ true: '#3b82f6' }}
-							/>
-						</View>
-
 						{/* Units toggle */}
 						<View style={styles.row}>
 							<Text style={styles.controlLabel}>Units</Text>

@@ -1,7 +1,7 @@
 import type { Feature, LineString } from 'geojson';
 import { z } from 'zod';
 import { STADIA_API_KEY, VALHALLA_BASE_URL } from '../constants/map';
-import type { Coordinate, RouteStats } from '../store/routeStore';
+import type { Coordinate, RouteStats, Waypoint } from '../store/routeStore';
 
 const ValhallaRouteResponseSchema = z.object({
 	trip: z.object({
@@ -62,6 +62,87 @@ function calcGainLoss(heights: number[]): { gainM: number; lossM: number } {
 		else lossM += -diff;
 	}
 	return { gainM, lossM };
+}
+
+/**
+ * Calls Valhalla to get route shape points between exactly two coordinates.
+ * Returns decoded [lon, lat] pairs.
+ */
+async function fetchRouteShape(
+	from: Coordinate,
+	to: Coordinate,
+): Promise<[number, number][]> {
+	const locations = [
+		{ lon: from.longitude, lat: from.latitude, type: 'break' },
+		{ lon: to.longitude, lat: to.latitude, type: 'break' },
+	];
+
+	const response = await fetch(
+		`${VALHALLA_BASE_URL}/route/v1?api_key=${STADIA_API_KEY}`,
+		{
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				locations,
+				costing: 'pedestrian',
+				costing_options: { pedestrian: { use_trails: 1.0 } },
+				directions_type: 'none',
+			}),
+		},
+	);
+
+	if (!response.ok) {
+		const body = await response.text();
+		throw new Error(`Valhalla route error ${response.status}: ${body}`);
+	}
+
+	const parsed = ValhallaRouteResponseSchema.safeParse(await response.json());
+	if (!parsed.success) {
+		throw new Error(
+			`Unexpected Valhalla route response: ${parsed.error.message}`,
+		);
+	}
+
+	const coords: [number, number][] = [];
+	for (const leg of parsed.data.trip.legs) {
+		const legCoords = decodePolyline6(leg.shape);
+		coords.push(...(coords.length > 0 ? legCoords.slice(1) : legCoords));
+	}
+	return coords;
+}
+
+/**
+ * Fetches elevation data for the given [lon, lat] shape points.
+ * Returns range_height (cumulative distance in metres + elevation) and raw heights.
+ */
+async function fetchElevationForCoords(
+	coords: [number, number][],
+): Promise<{ rangeHeight: [number, number][]; heights: number[] }> {
+	const response = await fetch(
+		`${VALHALLA_BASE_URL}/elevation/v1?api_key=${STADIA_API_KEY}`,
+		{
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				shape: coords.map(([lon, lat]) => ({ lon, lat })),
+				range: true,
+			}),
+		},
+	);
+
+	if (!response.ok) {
+		const body = await response.text();
+		throw new Error(`Elevation error ${response.status}: ${body}`);
+	}
+
+	const parsed = ElevationResponseSchema.safeParse(await response.json());
+	if (!parsed.success) {
+		throw new Error(`Unexpected elevation response: ${parsed.error.message}`);
+	}
+
+	const rangeHeight = parsed.data.range_height;
+	const heights = rangeHeight.map(([, h]) => h);
+	return { rangeHeight, heights };
 }
 
 /**
@@ -131,34 +212,7 @@ export async function fetchRoute(
 	};
 
 	// 2. Fetch elevation for each shape point
-	const elevationResponse = await fetch(
-		`${VALHALLA_BASE_URL}/elevation/v1?api_key=${STADIA_API_KEY}`,
-		{
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				shape: coords.map(([lon, lat]) => ({ lon, lat })),
-				range: true,
-			}),
-		},
-	);
-
-	if (!elevationResponse.ok) {
-		const body = await elevationResponse.text();
-		throw new Error(`Elevation error ${elevationResponse.status}: ${body}`);
-	}
-
-	const elevationParsed = ElevationResponseSchema.safeParse(
-		await elevationResponse.json(),
-	);
-	if (!elevationParsed.success) {
-		throw new Error(
-			`Unexpected elevation response: ${elevationParsed.error.message}`,
-		);
-	}
-	// range_height: [[rangeMeters, elevationM], ...] — Valhalla returns range in meters
-	const rangeHeight = elevationParsed.data.range_height;
-	const heights = rangeHeight.map(([_, h]) => h);
+	const { rangeHeight, heights } = await fetchElevationForCoords(coords);
 	const { gainM, lossM } = calcGainLoss(heights);
 
 	// Normalise range to km so elevationData matches the [distanceKm, elevationM] contract
@@ -170,4 +224,61 @@ export async function fetchRoute(
 	const stats: RouteStats = { distanceKm, gainM, lossM };
 
 	return { route, elevationData, stats };
+}
+
+/**
+ * Routes each segment independently using the snapAfter value stored on each waypoint.
+ * snapAfter = true  → Valhalla trail routing
+ * snapAfter = false → straight line between the two waypoints
+ * Elevation is fetched once for the full concatenated shape.
+ */
+export async function fetchRouteSegmented(
+	waypoints: Waypoint[],
+): Promise<RouteResult> {
+	if (!STADIA_API_KEY) {
+		throw new Error(
+			'Stadia API key not set. Add EXPO_PUBLIC_STADIA_KEY to your .env file.',
+		);
+	}
+
+	// Build shape by routing each pair of adjacent waypoints
+	const allCoords: [number, number][] = [];
+	for (let i = 0; i < waypoints.length - 1; i++) {
+		const from = waypoints[i].coordinate;
+		const to = waypoints[i + 1].coordinate;
+		let segCoords: [number, number][];
+
+		if (waypoints[i + 1].snapAfter) {
+			segCoords = await fetchRouteShape(from, to);
+		} else {
+			// Straight line — just the two endpoints
+			segCoords = [
+				[from.longitude, from.latitude],
+				[to.longitude, to.latitude],
+			];
+		}
+
+		// Skip duplicate junction point when appending after the first segment
+		allCoords.push(...(allCoords.length > 0 ? segCoords.slice(1) : segCoords));
+	}
+
+	const route: Feature<LineString> = {
+		type: 'Feature',
+		geometry: { type: 'LineString', coordinates: allCoords },
+		properties: {},
+	};
+
+	// Fetch elevation once for the full shape
+	const { rangeHeight, heights } = await fetchElevationForCoords(allCoords);
+	const { gainM, lossM } = calcGainLoss(heights);
+
+	// Normalise range to km; last range_height entry gives total distance
+	const elevationData: [number, number][] = rangeHeight.map(([r, h]) => [
+		r / 1000,
+		h,
+	]);
+	const distanceKm =
+		rangeHeight.length > 0 ? rangeHeight[rangeHeight.length - 1][0] / 1000 : 0;
+
+	return { route, elevationData, stats: { distanceKm, gainM, lossM } };
 }

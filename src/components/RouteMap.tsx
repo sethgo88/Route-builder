@@ -15,6 +15,7 @@ import type {
 import {
 	Layers2,
 	Locate,
+	Magnet,
 	Plus,
 	Redo2,
 	Trash2,
@@ -73,6 +74,8 @@ export default function RouteMap() {
 	const setPendingDragSegments = useRouteStore((s) => s.setPendingDragSegments);
 	const setDragPreview = useRouteStore((s) => s.setDragPreview);
 	const clearDragPreview = useRouteStore((s) => s.clearDragPreview);
+	const isSnapping = useRouteStore((s) => s.isSnapping);
+	const setIsSnapping = useRouteStore((s) => s.setIsSnapping);
 
 	const { data: savedRoutes } = useRoutes();
 
@@ -440,6 +443,12 @@ export default function RouteMap() {
 							disabled={!canRedo()}
 						>
 							<Redo2 size={20} color={canRedo() ? '#374151' : '#9ca3af'} />
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={styles.layerButton}
+							onPress={() => setIsSnapping(!isSnapping)}
+						>
+							<Magnet size={20} color={isSnapping ? '#3b82f6' : '#9ca3af'} />
 						</TouchableOpacity>
 						<TouchableOpacity
 							style={styles.layerButton}
