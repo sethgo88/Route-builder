@@ -35,6 +35,7 @@ interface RouteForSync {
   localId: number;
   remoteId: string | null;  // Supabase UUID, null until first sync
   name: string;
+  color: string;
   waypoints: Waypoint[];
   geometry: Feature<LineString>;
   stats: RouteStats | null;
@@ -124,8 +125,7 @@ All functions are synchronous (expo-sqlite sync API).
 | `created_at` | `timestamptz` | |
 | `updated_at` | `timestamptz` | |
 | `deleted_at` | `timestamptz \| null` | Soft-delete |
-
-**Known gap:** `color` exists in SQLite but is not in the Supabase `routes` table. Color is not synced.
+| `color` | `text NOT NULL DEFAULT '#3b82f6'` | Hex line colour |
 
 ### `user_settings`
 

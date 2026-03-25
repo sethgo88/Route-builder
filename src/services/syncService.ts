@@ -34,6 +34,7 @@ export async function pushRoute(localId: number): Promise<void> {
 			...(row.remoteId ? { id: row.remoteId } : {}),
 			user_id: userData.user.id,
 			name: row.name,
+			color: row.color,
 			waypoints: row.waypoints,
 			geometry: row.geometry,
 			stats: row.stats,
@@ -117,6 +118,7 @@ export async function pullMissingRoutes(): Promise<void> {
 			insertRemoteRoute({
 				remoteId: remote.id,
 				name: remote.name,
+				color: remote.color ?? '#3b82f6',
 				waypoints: remote.waypoints as Waypoint[],
 				geometry: remote.geometry as Feature<LineString>,
 				stats: remote.stats as RouteStats | null,
