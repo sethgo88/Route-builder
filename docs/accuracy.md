@@ -9,21 +9,21 @@ and affected files. Follow-up issues are linked where created.
 
 ## 1. GPS Accuracy
 
-### Finding 1 — expo-location accuracy mode not configured (S)
+### Finding 1 — expo-location accuracy mode not configured (S) ✅ implemented 2026-03-25
 
 | | |
 |---|---|
 | **Current behavior** | `RouteMap.tsx:33` calls `Location.requestForegroundPermissionsAsync()` but never passes accuracy options when watching or fetching the user's location. MapLibreGL's `UserLocation` component uses the OS default, which may fall back to network/coarse location. |
-| **Proposed change** | Pass `{ accuracy: Location.Accuracy.BestForNavigation }` (or at minimum `Accuracy.High`) when initiating location updates. This maps to `kCLLocationAccuracyBestForNavigation` on iOS and the highest-accuracy GPS mode on Android. |
+| **Proposed change** | Pass `{ accuracy: Location.Accuracy.BestForNavigation }` (or at minimum `Accuracy.High`) when initiating location updates. This maps to `kCLLocationAccuracyBestForNavigation` on iOS and the highest-accuracy GPS mode on Android. **Implemented:** `useEffect` in `RouteMap.tsx` now calls `getCurrentPositionAsync({ accuracy: BestForNavigation })` after permission grant, activating high-accuracy GPS mode for MapLibreGL `UserLocation`. |
 | **Effort** | S |
 | **Affected files** | `src/components/RouteMap.tsx` |
 
-### Finding 2 — Android manifest fine location declaration (S)
+### Finding 2 — Android manifest fine location declaration (S) ✅ audited 2026-03-25
 
 | | |
 |---|---|
 | **Current behavior** | The bare Expo workflow generates an `android/app/src/main/AndroidManifest.xml`. Expo SDK adds `ACCESS_FINE_LOCATION` automatically when `expo-location` is present, but in a bare workflow this can silently revert to `ACCESS_COARSE_LOCATION` only if the manifest is regenerated without the plugin config. |
-| **Proposed change** | Audit `android/app/src/main/AndroidManifest.xml` to confirm `<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>` is present. Also add `ACCESS_BACKGROUND_LOCATION` if background tracking is ever needed. Document findings in a comment in `app.json`. |
+| **Proposed change** | Audit `android/app/src/main/AndroidManifest.xml` to confirm `<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>` is present. Also add `ACCESS_BACKGROUND_LOCATION` if background tracking is ever needed. Document findings in a comment in `app.json`. **Audited:** `ACCESS_FINE_LOCATION` confirmed present in both `AndroidManifest.xml` (line 3) and `app.json` permissions array. Bare workflow preserves it on prebuild. No change required. |
 | **Effort** | S |
 | **Affected files** | `android/app/src/main/AndroidManifest.xml`, `app.json` |
 
@@ -104,8 +104,8 @@ and affected files. Follow-up issues are linked where created.
 
 | # | Area | Finding | Effort | Follow-up Issue |
 |---|------|---------|--------|-----------------|
-| 1 | GPS | expo-location accuracy mode | S | TBD |
-| 2 | GPS | Android fine location manifest audit | S | TBD |
+| 1 | GPS | expo-location accuracy mode | S | ✅ implemented |
+| 2 | GPS | Android fine location manifest audit | S | ✅ audited — no change needed |
 | 3 | GPS | MapLibreGL heading/tracking mode | M | TBD |
 | 4 | Routing | Walking speed 5.1→4.0 km/h ⭐ | S | TBD |
 | 5 | Routing | `use_hills` hill preference | S | TBD |
