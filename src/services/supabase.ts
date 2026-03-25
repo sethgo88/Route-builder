@@ -39,6 +39,7 @@ export interface SupabaseRoute {
 	created_at: string;
 	updated_at: string;
 	deleted_at: string | null;
+	color: string;
 }
 
 /** Row shape for the Supabase `user_settings` table. */

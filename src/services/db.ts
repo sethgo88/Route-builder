@@ -17,6 +17,7 @@ export interface RouteForSync {
 	localId: number;
 	remoteId: string | null;
 	name: string;
+	color: string;
 	waypoints: Waypoint[];
 	geometry: Feature<LineString>;
 	stats: RouteStats | null;
@@ -230,6 +231,7 @@ export function getRouteForSync(localId: number): RouteForSync | null {
 		id: number;
 		remote_id: string | null;
 		name: string;
+		color: string;
 		waypoints: string;
 		geometry: string;
 		stats: string | null;
@@ -241,6 +243,7 @@ export function getRouteForSync(localId: number): RouteForSync | null {
 		localId: row.id,
 		remoteId: row.remote_id,
 		name: row.name,
+		color: row.color ?? '#3b82f6',
 		waypoints: JSON.parse(row.waypoints) as Waypoint[],
 		geometry: JSON.parse(row.geometry) as Feature<LineString>,
 		stats: row.stats ? (JSON.parse(row.stats) as RouteStats) : null,
@@ -289,6 +292,7 @@ export function listLocalRemoteIds(): string[] {
 export function insertRemoteRoute(route: {
 	remoteId: string;
 	name: string;
+	color: string;
 	waypoints: Waypoint[];
 	geometry: Feature<LineString>;
 	stats: RouteStats | null;
@@ -304,9 +308,10 @@ export function insertRemoteRoute(route: {
 	const now = new Date().toISOString();
 	db.runSync(
 		`INSERT INTO routes
-			(name, waypoints, geometry, stats, created_at, updated_at, remote_id)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			(name, color, waypoints, geometry, stats, created_at, updated_at, remote_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		route.name,
+		route.color,
 		JSON.stringify(route.waypoints),
 		JSON.stringify(route.geometry),
 		route.stats ? JSON.stringify(route.stats) : null,
