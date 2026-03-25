@@ -4,7 +4,7 @@
 
 ## Project Overview
 React Native (Expo bare workflow) + TypeScript Android app for planning hiking and trail routes.
-Map tiles and routing via Stadia Maps. No backend — all state is local.
+Map tiles and routing via Stadia Maps. Local SQLite storage + optional Supabase cloud sync.
 
 ## Key Commands
 ```bash
@@ -29,28 +29,51 @@ React Native 0.76, Expo 52 (bare workflow), MapLibre GL (`@maplibre/maplibre-rea
 src/
   constants/
     map.ts              API keys, tile URLs, VALHALLA_BASE_URL, map defaults
+  constants/map.ts      API keys, tile URLs, VALHALLA_BASE_URL, offline tile settings
   store/
-    routeStore.ts       Single Zustand store — waypoints, route, elevation, stats
+    routeStore.ts       Zustand store — all active editing state (waypoints, route, drag preview, undo/redo)
+    authStore.ts        Supabase auth state (user, session)
+    settingsStore.ts    User preferences (unit system)
   hooks/
     useRouting.ts       TanStack Query hook: debounced route fetch on waypoint change
     useDebounce.ts      Generic debounce utility
+    useRoutes.ts        Fetches saved routes from SQLite
   services/
-    routing.ts          Stadia Valhalla API client (route + elevation) — Zod-validated
+    routing.ts          Stadia Valhalla API client — fetchRouteSegmented + legacy fetchRoute
     gpxParser.ts        GPX XML → Coordinate[] via fast-xml-parser
-    gpxExport.ts        Coordinate[] → GPX XML + native share sheet
+    gpxExport.ts        Coordinate[] → GPX 1.1 XML + native share sheet
+    db.ts               SQLite CRUD (routes + settings tables) + sync helpers
+    authService.ts      Supabase auth (signIn, signUp, signOut, getSession, onAuthStateChange)
+    supabase.ts         Supabase client + SecureStore session persistence
+    syncService.ts      Local-first cloud sync (pushRoute, pullMissingRoutes, push/pullSettings)
   components/
-    RouteMap.tsx        Root map, camera, long-press gesture
+    RouteMap.tsx        Root map, camera, long-press gesture; calls useRouting()
     WaypointMarker.tsx  Draggable PointAnnotation per waypoint
     MidpointMarker.tsx  Insert-waypoint button on route segment midpoints
-    RoutePolyline.tsx   ShapeSource + LineLayer for the route line
-    ControlsPanel.tsx   Bottom sheet — style picker, snap toggle, stats, export
+    RoutePolyline.tsx   Per-segment ShapeSource+LineLayer; handles drag-preview rendering
+    ControlsPanel.tsx   Bottom sheet — snap toggle, stats, GPX, offline tiles, save/edit/delete
     ElevationProfile.tsx  SVG elevation chart with tap-to-fly-camera
+    RouteActionBar.tsx  Creating mode ✓/✗ bar; owns NameRouteModal + UnsavedChangesModal
+    AccountModal.tsx    Auth form; triggers pullMissingRoutes/pullSettings on sign-in
+    RouteListModal.tsx  Saved routes list
+    NameRouteModal.tsx  Route naming dialog
+    UnsavedChangesModal.tsx  Leave guard dialog
+  utils/
+    routeMidpoint.ts    Segment midpoints + route tangent bearings
+    units.ts            km↔mi, m↔ft formatters
 docs/
-  architecture.md       Data flow, routing details, store shape, component map
+  architecture.md       Editing modes, data flows, routing, snap toggle, GPX
+  store.md              Complete Zustand store reference (all state + actions + types)
+  data.md               SQLite schema, db.ts API, Supabase tables, sync strategy
+  components.md         Component tree, store matrix, service contracts, utility functions
+  accuracy.md           Research spike: GPS, Valhalla calibration, polyline validation
 ```
 
-## Routing Architecture
-See `docs/architecture.md` for full data flow, polyline6 decoding, multi-leg concatenation, and API details.
+## Docs Reference
+- `docs/architecture.md` — editing modes, data flows, routing, snap toggle
+- `docs/store.md` — all Zustand state fields and actions
+- `docs/data.md` — SQLite schema, db.ts API, Supabase tables
+- `docs/components.md` — component tree, store reads/writes, service contracts
 
 ## Environment
 ```
