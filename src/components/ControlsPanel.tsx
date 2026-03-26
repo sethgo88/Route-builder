@@ -68,7 +68,7 @@ interface Props {
 
 export default function ControlsPanel({ mapViewRef }: Props) {
 	const queryClient = useQueryClient();
-	const snapPoints = useMemo(() => ['24%', '65%'], []);
+	const snapPoints = useMemo(() => ['4%', '24%', '65%'], []);
 	const bottomSheetRef = useRef<BottomSheet>(null);
 	const { width } = useWindowDimensions();
 
@@ -93,6 +93,8 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 
 	const unitSystem = useSettingsStore((s) => s.unitSystem);
 	const setUnitSystem = useSettingsStore((s) => s.setUnitSystem);
+	const walkingSpeed = useSettingsStore((s) => s.walkingSpeed);
+	const setWalkingSpeed = useSettingsStore((s) => s.setWalkingSpeed);
 	const loadSettings = useSettingsStore((s) => s.loadSettings);
 
 	const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
@@ -524,6 +526,55 @@ export default function ControlsPanel({ mapViewRef }: Props) {
 							</View>
 						</View>
 
+						{/* Walking speed */}
+						<View style={styles.row}>
+							<Text style={styles.controlLabel}>Walking speed</Text>
+							<View style={styles.stepper}>
+								<TouchableOpacity
+									style={styles.stepperBtn}
+									onPress={() =>
+										setWalkingSpeed(
+											Math.max(1.0, Math.round((walkingSpeed - 0.5) * 10) / 10),
+										)
+									}
+									disabled={walkingSpeed <= 1.0}
+								>
+									<Text
+										style={[
+											styles.stepperBtnText,
+											walkingSpeed <= 1.0 && styles.stepperBtnDisabled,
+										]}
+									>
+										−
+									</Text>
+								</TouchableOpacity>
+								<Text style={styles.stepperValue}>
+									{walkingSpeed.toFixed(1)} km/h
+								</Text>
+								<TouchableOpacity
+									style={styles.stepperBtn}
+									onPress={() =>
+										setWalkingSpeed(
+											Math.min(
+												10.0,
+												Math.round((walkingSpeed + 0.5) * 10) / 10,
+											),
+										)
+									}
+									disabled={walkingSpeed >= 10.0}
+								>
+									<Text
+										style={[
+											styles.stepperBtnText,
+											walkingSpeed >= 10.0 && styles.stepperBtnDisabled,
+										]}
+									>
+										+
+									</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
+
 						<View style={styles.buttonRow}>
 							<ActionButton
 								label={isImporting ? 'Importing…' : 'Import GPX'}
@@ -785,6 +836,37 @@ const styles = StyleSheet.create({
 	},
 	unitOptionTextActive: {
 		color: '#fff',
+	},
+	stepper: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		borderRadius: 8,
+		borderWidth: 1,
+		borderColor: '#d1d5db',
+		overflow: 'hidden',
+	},
+	stepperBtn: {
+		paddingHorizontal: 12,
+		paddingVertical: 6,
+		backgroundColor: '#fff',
+	},
+	stepperBtnText: {
+		fontSize: 16,
+		fontWeight: '600',
+		color: '#374151',
+	},
+	stepperBtnDisabled: {
+		color: '#d1d5db',
+	},
+	stepperValue: {
+		fontSize: 13,
+		fontWeight: '500',
+		color: '#374151',
+		paddingHorizontal: 8,
+		borderLeftWidth: 1,
+		borderRightWidth: 1,
+		borderColor: '#d1d5db',
+		paddingVertical: 6,
 	},
 	buttonRow: {
 		flexDirection: 'row',

@@ -49,9 +49,19 @@ export default function RouteMap() {
 	// Drive routing side-effects
 	useRouting();
 
-	// Request location permissions on mount (Android runtime requirement)
+	// Request location permissions on mount (Android runtime requirement).
+	// After grant, call getCurrentPositionAsync with BestForNavigation to activate
+	// high-accuracy GPS mode on Android — MapLibreGL UserLocation benefits from this.
 	useEffect(() => {
-		Location.requestForegroundPermissionsAsync();
+		(async () => {
+			const { status } = await Location.requestForegroundPermissionsAsync();
+			if (status === 'granted') {
+				// Activate high-accuracy GPS mode; ignore errors (e.g. Location Services off)
+				Location.getCurrentPositionAsync({
+					accuracy: Location.Accuracy.BestForNavigation,
+				}).catch(() => {});
+			}
+		})();
 	}, []);
 
 	const editingMode = useRouteStore((s) => s.editingMode);

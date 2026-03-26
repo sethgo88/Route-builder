@@ -3,6 +3,12 @@ import { z } from 'zod';
 import { STADIA_API_KEY, VALHALLA_BASE_URL } from '../constants/map';
 import type { Coordinate, RouteStats, Waypoint } from '../store/routeStore';
 
+/**
+ * Valhalla encodes route geometry at precision 1e6 (polyline6).
+ * Standard Google Maps polyline uses 1e5 (polyline5) — do NOT change this value.
+ */
+const POLYLINE6_PRECISION = 1e6;
+
 const ValhallaRouteResponseSchema = z.object({
 	trip: z.object({
 		legs: z.array(z.object({ shape: z.string() })).min(1),
@@ -26,6 +32,7 @@ export interface RouteResult {
  * Valhalla encodes at precision 1e6 and returns [lat, lon] order.
  */
 function decodePolyline6(encoded: string): [number, number][] {
+	if (!encoded) return [];
 	const coords: [number, number][] = [];
 	let index = 0;
 	let lat = 0;
@@ -48,7 +55,14 @@ function decodePolyline6(encoded: string): [number, number][] {
 			shift += 5;
 		} while (b >= 0x20);
 		lon += result & 1 ? ~(result >> 1) : result >> 1;
-		coords.push([lon / 1e6, lat / 1e6]); // GeoJSON is [lon, lat]
+		const decodedLat = lat / POLYLINE6_PRECISION;
+		const decodedLon = lon / POLYLINE6_PRECISION;
+		if (Math.abs(decodedLat) > 90 || Math.abs(decodedLon) > 180) {
+			throw new Error(
+				`Decoded coordinate out of range: [${decodedLon}, ${decodedLat}]`,
+			);
+		}
+		coords.push([decodedLon, decodedLat]); // GeoJSON is [lon, lat]
 	}
 	return coords;
 }
@@ -71,6 +85,7 @@ function calcGainLoss(heights: number[]): { gainM: number; lossM: number } {
 async function fetchRouteShape(
 	from: Coordinate,
 	to: Coordinate,
+	walkingSpeed: number,
 ): Promise<[number, number][]> {
 	const locations = [
 		{ lon: from.longitude, lat: from.latitude, type: 'break' },
@@ -85,7 +100,9 @@ async function fetchRouteShape(
 			body: JSON.stringify({
 				locations,
 				costing: 'pedestrian',
-				costing_options: { pedestrian: { use_trails: 1.0 } },
+				costing_options: {
+					pedestrian: { use_trails: 1.0, walking_speed: walkingSpeed },
+				},
 				directions_type: 'none',
 			}),
 		},
@@ -152,6 +169,7 @@ async function fetchElevationForCoords(
 export async function fetchRoute(
 	waypoints: Coordinate[],
 	snapToTrails: boolean,
+	walkingSpeed: number,
 ): Promise<RouteResult> {
 	if (!STADIA_API_KEY) {
 		throw new Error(
@@ -175,7 +193,10 @@ export async function fetchRoute(
 				locations,
 				costing: 'pedestrian',
 				costing_options: {
-					pedestrian: { use_trails: snapToTrails ? 1.0 : 0.5 },
+					pedestrian: {
+						use_trails: snapToTrails ? 1.0 : 0.5,
+						walking_speed: walkingSpeed,
+					},
 				},
 				directions_type: 'none',
 			}),
@@ -234,6 +255,7 @@ export async function fetchRoute(
  */
 export async function fetchRouteSegmented(
 	waypoints: Waypoint[],
+	walkingSpeed: number,
 ): Promise<RouteResult> {
 	if (!STADIA_API_KEY) {
 		throw new Error(
@@ -249,7 +271,7 @@ export async function fetchRouteSegmented(
 		let segCoords: [number, number][];
 
 		if (waypoints[i + 1].snapAfter) {
-			segCoords = await fetchRouteShape(from, to);
+			segCoords = await fetchRouteShape(from, to, walkingSpeed);
 		} else {
 			// Straight line — just the two endpoints
 			segCoords = [
