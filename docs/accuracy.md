@@ -40,12 +40,12 @@ and affected files. Follow-up issues are linked where created.
 
 ## 2. Valhalla Routing
 
-### Finding 4 — Walking speed miscalibrated for hiking (S) ⭐ immediately actionable
+### Finding 4 — Walking speed miscalibrated for hiking (S) ✅ implemented 2026-03-25
 
 | | |
 |---|---|
 | **Current behavior** | `src/services/routing.ts:93–101` uses `costing: 'pedestrian'` with only `use_trails` set. Valhalla's default pedestrian walking speed is **5.1 km/h**, which is appropriate for urban walking but significantly overestimates pace on technical hiking terrain (typical 3.5–4.5 km/h). This causes ETA and distance-time calculations to be optimistic. |
-| **Proposed change** | Add `walking_speed: 4.0` to `costing_options.pedestrian`. Valhalla accepts values from 1–25 km/h. A value of 4.0 km/h aligns with Naismith's Rule base pace and is a common default in hiking apps. This is a one-line addition with no UI changes required. |
+| **Proposed change** | Add `walking_speed: 4.0` to `costing_options.pedestrian`. Valhalla accepts values from 1–25 km/h. A value of 4.0 km/h aligns with Naismith's Rule base pace and is a common default in hiking apps. This is a one-line addition with no UI changes required. **Implemented:** `walkingSpeed` stored in `settingsStore` (default 4.0, persisted to SQLite), exposed as a +/− stepper in `ControlsPanel`, passed to all Valhalla requests. Changing speed invalidates the route query cache. |
 | **Effort** | S |
 | **Affected files** | `src/services/routing.ts` |
 
@@ -71,30 +71,30 @@ and affected files. Follow-up issues are linked where created.
 
 ## 3. Polyline Decoding
 
-### Finding 7 — decodePolyline6 lacks input validation (S)
+### Finding 7 — decodePolyline6 lacks input validation (S) ✅ implemented 2026-03-25
 
 | | |
 |---|---|
 | **Current behavior** | `src/services/routing.ts:28–54` — `decodePolyline6` has no guards. Passing an empty string silently returns `[]`, which causes the route render to produce an empty LineString (valid GeoJSON but invisible). A truncated or corrupted encoded string will enter the decode loop mid-sequence and either produce nonsense coordinates (outside `[-90,90]` / `[-180,180]`) or throw a `charCodeAt` exception if `index` runs past `encoded.length`. |
-| **Proposed change** | (1) Early-return `[]` for empty/falsy input. (2) After decoding, validate each coordinate: `if (Math.abs(lat) > 90 \|\| Math.abs(lon) > 180) throw new Error(...)`. (3) Wrap call sites in `try/catch` that surfaces a user-visible error via the existing `Alert` pattern in `useRouting.ts`. |
+| **Proposed change** | (1) Early-return `[]` for empty/falsy input. (2) After decoding, validate each coordinate: `if (Math.abs(lat) > 90 \|\| Math.abs(lon) > 180) throw new Error(...)`. (3) Wrap call sites in `try/catch` that surfaces a user-visible error via the existing `Alert` pattern in `useRouting.ts`. **Implemented:** `decodePolyline6` now early-returns `[]` for empty input and throws on out-of-range coordinates. Errors propagate through TanStack Query to the existing `Alert` handler in `useRouting.ts`. |
 | **Effort** | S |
 | **Affected files** | `src/services/routing.ts` |
 
-### Finding 8 — Polyline precision constant is undocumented (S)
+### Finding 8 — Polyline precision constant is undocumented (S) ✅ implemented 2026-03-25
 
 | | |
 |---|---|
 | **Current behavior** | The precision divisor `1e6` appears inline at `src/services/routing.ts:51` with a brief comment. Valhalla uses precision 1e6 (polyline6), while Google Maps / standard polyline encoding uses 1e5 (polyline5). The distinction is non-obvious; a future contributor could mistakenly change `1e6` to `1e5`, introducing a 10× coordinate error. |
-| **Proposed change** | Extract `const POLYLINE6_PRECISION = 1e6` as a module-level named constant with a JSDoc comment explaining that Valhalla uses polyline6 (not the standard polyline5 at 1e5). |
+| **Proposed change** | Extract `const POLYLINE6_PRECISION = 1e6` as a module-level named constant with a JSDoc comment explaining that Valhalla uses polyline6 (not the standard polyline5 at 1e5). **Implemented:** `POLYLINE6_PRECISION = 1e6` extracted as a named constant with a JSDoc warning not to change it to 1e5. |
 | **Effort** | S |
 | **Affected files** | `src/services/routing.ts` |
 
-### Finding 9 — Native GeoJSON shape format available (M)
+### Finding 9 — Native GeoJSON shape format available (M) ❌ not supported by Stadia
 
 | | |
 |---|---|
 | **Current behavior** | Valhalla encodes route geometry as polyline6, requiring client-side decoding (`decodePolyline6`, ~27 lines) and manual multi-leg concatenation at `src/services/routing.ts:120–124`. |
-| **Proposed change** | Valhalla's `/route/v1` endpoint accepts `shape_format: 'geojson'` in the request body, returning a GeoJSON `LineString` per leg directly. This eliminates `decodePolyline6` entirely and simplifies concatenation to a coordinate array merge. The response Zod schema and `fetchRoute` logic would need updating, but the surface area is confined to `routing.ts`. |
+| **Proposed change** | Valhalla's `/route/v1` endpoint accepts `shape_format: 'geojson'` in the request body, returning a GeoJSON `LineString` per leg directly. This eliminates `decodePolyline6` entirely and simplifies concatenation to a coordinate array merge. The response Zod schema and `fetchRoute` logic would need updating, but the surface area is confined to `routing.ts`. **Not implemented:** Stadia's hosted Valhalla returns HTTP 400 — `unknown variant geojson, expected polyline6 or polyline5`. Findings #7 and #8 were addressed directly in `decodePolyline6` instead. |
 | **Effort** | M |
 | **Affected files** | `src/services/routing.ts` |
 
@@ -107,9 +107,9 @@ and affected files. Follow-up issues are linked where created.
 | 1 | GPS | expo-location accuracy mode | S | ✅ implemented |
 | 2 | GPS | Android fine location manifest audit | S | ✅ audited — no change needed |
 | 3 | GPS | MapLibreGL heading/tracking mode | M | TBD |
-| 4 | Routing | Walking speed 5.1→4.0 km/h ⭐ | S | TBD |
+| 4 | Routing | Walking speed (user-controlled, default 4.0 km/h) | S | ✅ implemented |
 | 5 | Routing | `use_hills` hill preference | S | TBD |
 | 6 | Routing | SAC scale difficulty cap | M | TBD |
-| 7 | Polyline | `decodePolyline6` input validation | S | TBD |
-| 8 | Polyline | `POLYLINE6_PRECISION` named constant | S | TBD |
-| 9 | Polyline | Native GeoJSON `shape_format` | M | TBD |
+| 7 | Polyline | `decodePolyline6` input validation | S | ✅ implemented |
+| 8 | Polyline | `POLYLINE6_PRECISION` named constant | S | ✅ implemented |
+| 9 | Polyline | Native GeoJSON `shape_format` | M | ❌ not supported by Stadia |

@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Alert } from 'react-native';
 import { fetchRouteSegmented } from '../services/routing';
 import { useRouteStore } from '../store/routeStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { useDebounce } from './useDebounce';
 
 const DEBOUNCE_MS = 400;
@@ -13,6 +14,7 @@ const DEBOUNCE_MS = 400;
  * handles caching — identical waypoints produce no extra API call.
  */
 export function useRouting(): void {
+	const walkingSpeed = useSettingsStore((s) => s.walkingSpeed);
 	const waypoints = useRouteStore((s) => s.waypoints);
 	const setRoute = useRouteStore((s) => s.setRoute);
 	const setElevationData = useRouteStore((s) => s.setElevationData);
@@ -25,8 +27,8 @@ export function useRouting(): void {
 	const debouncedWaypoints = useDebounce(waypoints, DEBOUNCE_MS);
 
 	const { data, isFetching, error } = useQuery({
-		queryKey: ['route', debouncedWaypoints],
-		queryFn: () => fetchRouteSegmented(debouncedWaypoints),
+		queryKey: ['route', debouncedWaypoints, walkingSpeed],
+		queryFn: () => fetchRouteSegmented(debouncedWaypoints, walkingSpeed),
 		enabled: debouncedWaypoints.length >= 2,
 		staleTime: 5 * 60 * 1000,
 	});
